@@ -1,0 +1,64 @@
+name: sos_system
+description: "A new Flutter project."
+publish_to: 'none' # Prevent publishing to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI and Fonts
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.3.2
+
+  # 🌍 Google Maps Integration
+  google_maps_flutter: ^2.13.1
+
+  # 📍 Location tracking and permissions
+  location: ^8.0.1
+  permission_handler: ^11.3.1
+
+  # 🔍 Geocoding for address search
+  geocoding: ^4.0.0
+  provider: ^6.1.5+1
+  firebase_auth: ^6.1.1
+  cloud_firestore: ^6.0.3
+  http: ^1.5.0
+  shared_preferences: ^2.5.3
+  flutter_compass: ^0.8.1
+  flutter_tts: ^4.2.3
+  firebase_core: ^4.2.0
+  app_settings: ^5.1.1
+  geolocator: ^14.0.2
+  intl: ^0.20.2
+  flutter_background: ^1.3.0+1
+  uuid: ^4.5.1
+  url_launcher: ^6.3.2
+  flutter_phone_direct_caller: ^2.1.0
+  flutter_launcher_icons: ^0.14.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # Code quality and linting
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/profile.jpg
+    - assets/images/MyGuardian.png
+    - assets/images/login_page.png
+    - assets/images/car_arrow.png
+    - assets/images/shashi_sir.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/MyGuardianImage.png"  
