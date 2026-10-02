@@ -12,13 +12,17 @@ import 'package:sos_system/modules/auth/controllers/shared_preference_data.dart'
 import 'package:sos_system/modules/guardian/views/child_movement_history_screen.dart';
 import 'package:sos_system/modules/guardian/views/guardian_emergency_contact_list.dart';
 import 'package:sos_system/core/user_paths.dart';
+import 'package:sos_system/modules/child/views/movement_history_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:sos_system/modules/guardian/views/checkin_status_dialog.dart';
 import 'package:sos_system/modules/guardian/views/guardian_alerts_page.dart';
 import 'package:sos_system/modules/guardian/views/track_child_screen.dart';
 
 class GuardianDashboard extends StatefulWidget {
   final String guardianEmail; // pass guardian email when constructing
-  const GuardianDashboard({super.key, required this.guardianEmail});
+  /// Switches the bottom-navigation tab (1 = Track Child) instead of pushing a new page.
+  final ValueChanged<int>? onOpenTab;
+  const GuardianDashboard({super.key, required this.guardianEmail, this.onOpenTab});
 
   @override
   State<GuardianDashboard> createState() => _GuardianDashboardState();
@@ -40,7 +44,9 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
 
   // notification listener
   StreamSubscription<QuerySnapshot>? _guardianNotifSub;
+  StreamSubscription<QuerySnapshot>? _guardianRequestSub;
   bool _hasUnreadNotifications = false;
+  bool _hasPendingRequests = false;
 
   @override
   void initState() {
@@ -93,11 +99,13 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
   }
 
   final Map<String, String> _childNames = {};
+  final Map<String, String> _childPhones = {};
 
   Future<void> _loadConnectedChildrenAndSubscribe() async {
     final kids = await UserPaths.childrenOf(widget.guardianEmail);
     for (final k in kids) {
       _childNames[k.id] = (k.data()['name'] ?? '').toString();
+      _childPhones[k.id] = (k.data()['mobile'] ?? '').toString().trim();
       _subscribeToChildLive(k.id);
     }
     if (mounted) setState(() {});
@@ -134,6 +142,20 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
             .toList(),
       ),
     );
+  }
+
+  Future<void> _callChild(String email) async {
+    final phone = _childPhones[email] ?? '';
+    if (phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("No phone number saved for ${_nameOf(email)}")));
+      return;
+    }
+    final uri = Uri(scheme: 'tel', path: phone);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Could not open the dialer")));
+    }
   }
 
   Future<void> _checkOnChild([String? email]) async {
@@ -214,18 +236,19 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
             onTap: () {
               Navigator.pop(sheetCtx);
               Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const ChildMovementHistory(),
+                builder: (_) => MovementHistoryScreen(
+                  childEmail: email,
+                  title: "${_nameOf(email)}'s journeys",
+                ),
               ));
             },
           ),
           ListTile(
             leading: const Icon(Icons.call),
-            title: const Text("Call child"),
+            title: Text("Call ${_nameOf(email)}"),
             onTap: () {
               Navigator.pop(sheetCtx);
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const GuardianEmergencyContactList(),
-              ));
+              _callChild(email);
             },
           ),
         ],
@@ -277,6 +300,7 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
     }
     _mapController?.dispose();
     _guardianNotifSub?.cancel();
+    _guardianRequestSub?.cancel();
     super.dispose();
   }
 
@@ -290,6 +314,17 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
           .collection('Guardian')
           .doc(guardianEmail)
           .collection('notifications');
+
+      _guardianRequestSub?.cancel();
+      _guardianRequestSub = _firestore
+          .collection('Guardian')
+          .doc(guardianEmail)
+          .collection('requests')
+          .where('status', isEqualTo: 'pending')
+          .snapshots()
+          .listen((snap) {
+        if (mounted) setState(() => _hasPendingRequests = snap.docs.isNotEmpty);
+      }, onError: (_) {});
 
       _guardianNotifSub?.cancel();
       _guardianNotifSub = coll.snapshots().listen(
@@ -342,12 +377,17 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
     _QuickActionItem(
       icon: Icons.map_outlined,
       label: "Track Child",
-      onTap:
-          (ctx) => Navigator.of(ctx).push(
+      onTap: (ctx) {
+        if (widget.onOpenTab != null) {
+          widget.onOpenTab!(1);
+        } else {
+          Navigator.of(ctx).push(
             MaterialPageRoute(
               builder: (_) => TrackChild(guardianEmail: widget.guardianEmail),
             ),
-          ),
+          );
+        }
+      },
     ),
     _QuickActionItem(
       icon: Icons.person_add,
@@ -423,7 +463,7 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
                     Icons.notifications_active_outlined,
                     color: Color.fromRGBO(0, 123, 255, 1.0),
                   ),
-                  if (_hasUnreadNotifications) 
+                  if (_hasUnreadNotifications || _hasPendingRequests)
                     Positioned(
                       right: -2,
                       top: -2,

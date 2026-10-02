@@ -140,7 +140,7 @@ class _GuardianEmergencyContactListState extends State<GuardianEmergencyContactL
               shape: const CircleBorder(),
               onPressed: () async {
                 await Navigator.of(context).push(
-                  MaterialPageRoute(builder: (c) => const AddEmergencyContacts()),
+                  MaterialPageRoute(builder: (c) => const AddEmergencyContacts(isGuardian: true)),
                 );
                 await _initPrefs();
               },
@@ -406,7 +406,7 @@ class _GuardianEmergencyContactListState extends State<GuardianEmergencyContactL
             shape: const CircleBorder(),
             onPressed: () async {
               await Navigator.of(context).push(
-                MaterialPageRoute(builder: (c) => const AddEmergencyContacts()),
+                MaterialPageRoute(builder: (c) => const AddEmergencyContacts(isGuardian: true)),
               );
             },
             child: Icon(

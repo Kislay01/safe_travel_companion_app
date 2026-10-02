@@ -44,12 +44,25 @@ class GuardianAlertsPage extends StatelessWidget {
       appBar: CustomAppBar(
         title: "Alerts",
         actions: [
-          IconButton(
-            tooltip: 'Link requests',
-            icon: const Icon(Icons.person_add_alt_1_outlined, color: Colors.blue),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const GuardianNotificationsPage()),
-            ),
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: UserPaths.guardian(guardianEmail)
+                .collection('requests')
+                .where('status', isEqualTo: 'pending')
+                .snapshots(),
+            builder: (context, snap) {
+              final pending = snap.data?.docs.length ?? 0;
+              return IconButton(
+                tooltip: 'Link requests',
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const GuardianNotificationsPage()),
+                ),
+                icon: Badge(
+                  isLabelVisible: pending > 0,
+                  label: Text('$pending'),
+                  child: const Icon(Icons.person_add_alt_1_outlined, color: Colors.blue),
+                ),
+              );
+            },
           ),
         ],
       ),

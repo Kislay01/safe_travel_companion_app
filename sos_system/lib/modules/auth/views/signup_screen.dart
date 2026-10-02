@@ -305,12 +305,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     style: GoogleFonts.poppins(color: subtitleColor),
                   ),
                   TextButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (_) => const LoginScreen()),
-                      );
-                    },
+                    onPressed: _backToLogin,
                     child: Text(
                       "Log in",
                       style: TextStyle(
@@ -430,8 +425,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (!mounted) return;
     setState(() => _isLoading = false);
     CustomSnackbar().showSnackBar(context, message);
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-    );
+    _backToLogin();
+  }
+
+  /// Sign-up is opened from the login screen, so go back to it instead of
+  /// stacking a second login screen.
+  void _backToLogin() {
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop();
+    } else {
+      nav.pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+    }
   }
 }

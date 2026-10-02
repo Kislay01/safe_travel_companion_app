@@ -16,7 +16,9 @@ import 'package:sos_system/modules/child/views/journey_screen.dart';
 import 'package:sos_system/modules/child/views/movement_history_screen.dart';
 
 class ChildDashboard extends StatefulWidget {
-  const ChildDashboard({super.key});
+  /// Switches the bottom-navigation tab (e.g. 1 = Journey) instead of pushing a new page.
+  final ValueChanged<int>? onOpenTab;
+  const ChildDashboard({super.key, this.onOpenTab});
 
   @override
   State<ChildDashboard> createState() => _ChildDashboardState();
@@ -39,7 +41,9 @@ class _ChildDashboardState extends State<ChildDashboard> with SingleTickerProvid
 
   // Notification listener
   StreamSubscription<QuerySnapshot>? _childNotifSub;
+  StreamSubscription<QuerySnapshot>? _childRequestSub;
   bool _hasUnreadNotifications = false;
+  bool _hasPendingRequests = false;
 
   @override
   void initState() {
@@ -55,6 +59,7 @@ class _ChildDashboardState extends State<ChildDashboard> with SingleTickerProvid
     _locationCheckTimer?.cancel();
     _holdTimer?.cancel();
     _childNotifSub?.cancel();
+    _childRequestSub?.cancel();
     super.dispose();
   }
 
@@ -107,6 +112,18 @@ class _ChildDashboardState extends State<ChildDashboard> with SingleTickerProvid
         // optional: handle or log error
         // print('Child notifications stream error: $e');
       });
+
+      // Link requests from guardians waiting for this child's answer.
+      _childRequestSub?.cancel();
+      _childRequestSub = _firestore
+          .collection('Child')
+          .doc(childId)
+          .collection('requests')
+          .where('status', isEqualTo: 'pending')
+          .snapshots()
+          .listen((snap) {
+        if (mounted) setState(() => _hasPendingRequests = snap.docs.isNotEmpty);
+      }, onError: (_) {});
     } catch (e) {
       // ignore errors
     }
@@ -234,7 +251,7 @@ class _ChildDashboardState extends State<ChildDashboard> with SingleTickerProvid
                     Icons.notifications_active_outlined,
                     color: Color.fromRGBO(0, 123, 255, 1.0),
                   ),
-                  if (_hasUnreadNotifications)
+                  if (_hasUnreadNotifications || _hasPendingRequests)
                     Positioned(
                       right: -2,
                       top: -2,
@@ -464,11 +481,15 @@ class _ChildDashboardState extends State<ChildDashboard> with SingleTickerProvid
                           icon: Icons.map_outlined,
                           label: "My Journey",
                           onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) => const JourneyScreen(),
-                              ),
-                            );
+                            if (widget.onOpenTab != null) {
+                              widget.onOpenTab!(1);
+                            } else {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => const JourneyScreen(),
+                                ),
+                              );
+                            }
                           },
                           isDark: isDark,
                         ),

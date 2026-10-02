@@ -20,7 +20,10 @@ class _BottomNavbarState extends State<GuardianBottomNav> {
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
-      GuardianDashboard(guardianEmail: widget.guardianEmail),
+      GuardianDashboard(
+        guardianEmail: widget.guardianEmail,
+        onOpenTab: (i) => setState(() => currentSelectedIndex = i),
+      ),
       TrackChild(guardianEmail: widget.guardianEmail),
       const ProfileScreen(),
       const GuardianChatList(),
