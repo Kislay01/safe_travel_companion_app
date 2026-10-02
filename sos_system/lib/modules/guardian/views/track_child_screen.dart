@@ -1,16 +1,14 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart' as location_pkg;
 import 'package:geocoding/geocoding.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:sos_system/common/views/custom_appbar.dart';
-import 'package:sos_system/core/app_config.dart';
+import 'package:sos_system/services/routes_service.dart';
 import 'package:sos_system/common/views/custom_snackbar.dart';
 import 'package:sos_system/modules/child/views/movement_history_screen.dart';
 
@@ -48,7 +46,7 @@ class _TrackChildState extends State<TrackChild> {
   late FlutterTts _flutterTts;
 
   List<LatLng> _routePoints = [];
-  final List<String> _directionsSteps = [];
+  final List<RouteStep> _routeSteps = [];
   int _currentStepIndex = 0;
 
   double _deviceHeading = 0.0;
@@ -210,50 +208,21 @@ class _TrackChildState extends State<TrackChild> {
     setState(() {
       _isLoading = true;
       _journeyStarted = true;
-      _directionsSteps.clear();
+      _routeSteps.clear();
       _currentStepIndex = 0;
     });
 
-    if (!AppConfig.hasMapsKey) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Maps key missing. Run with --dart-define-from-file=secrets.json")),
-      );
-      setState(() {
-        _isLoading = false;
-        _journeyStarted = false;
-      });
-      return;
-    }
-    const apiKey = AppConfig.mapsApiKey;
-    final url =
-        "https://maps.googleapis.com/maps/api/directions/json?"
-        "origin=${_currentLocation!.latitude},${_currentLocation!.longitude}"
-        "&destination=${_destination!.latitude},${_destination!.longitude}"
-        "&key=$apiKey";
-
     try {
-      final response = await http.get(Uri.parse(url));
-      final data = json.decode(response.body);
-
-      if (data["status"] != "OK") {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Error: ${data['status']}")));
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      final points = data["routes"][0]["overview_polyline"]["points"];
-      _routePoints = _decodePolyline(points);
-
-      final steps = data["routes"][0]["legs"][0]["steps"];
-      for (var step in steps) {
-        _directionsSteps.add(
-          step["html_instructions"].toString().replaceAll(
-            RegExp(r"<[^>]*>"),
-            "",
-          ),
-        );
+      final route = await RoutesService.computeRoute(
+        origin: _currentLocation!,
+        destination: _destination!,
+      );
+      _routePoints = route.points;
+      _routeSteps
+        ..clear()
+        ..addAll(route.steps);
+      if (_routeSteps.isNotEmpty) {
+        _flutterTts.speak(_routeSteps.first.instruction);
       }
 
       _polylines.clear();
@@ -277,8 +246,27 @@ class _TrackChildState extends State<TrackChild> {
       );
 
       _startTracking();
+    } on RoutesException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+        setState(() {
+          _isLoading = false;
+          _journeyStarted = false;
+        });
+      }
+      return;
     } catch (e) {
       debugPrint("Error fetching route: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Could not get a route. Try again.")));
+        setState(() {
+          _isLoading = false;
+          _journeyStarted = false;
+        });
+      }
+      return;
     }
 
     setState(() => _isLoading = false);
@@ -327,17 +315,18 @@ class _TrackChildState extends State<TrackChild> {
     });
   }
 
+  /// Speaks the next instruction once the current step's end point is reached.
   void _showNextInstruction(LatLng currentPos) async {
-    if (_currentStepIndex >= _routePoints.length) return;
+    if (_currentStepIndex >= _routeSteps.length) return;
 
-    final nextTurn = _routePoints[_currentStepIndex];
-    final distance = _distanceBetween(currentPos, nextTurn);
-
-    if (distance < 15) {
-      await _flutterTts.speak(
-        _directionsSteps[min(_currentStepIndex, _directionsSteps.length - 1)],
-      );
+    final step = _routeSteps[_currentStepIndex];
+    if (_distanceBetween(currentPos, step.end) < 25) {
       _currentStepIndex++;
+      if (_currentStepIndex < _routeSteps.length) {
+        await _flutterTts.speak(_routeSteps[_currentStepIndex].instruction);
+      } else {
+        await _flutterTts.speak("You have arrived at your destination");
+      }
     }
   }
 
@@ -356,36 +345,6 @@ class _TrackChildState extends State<TrackChild> {
   }
 
   double _deg2rad(double deg) => deg * pi / 180;
-
-  List<LatLng> _decodePolyline(String encoded) {
-    List<LatLng> polyline = [];
-    int index = 0, len = encoded.length;
-    int lat = 0, lng = 0;
-
-    while (index < len) {
-      int b, shift = 0, result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1F) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lat += dlat;
-
-      shift = 0;
-      result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1F) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lng += dlng;
-
-      polyline.add(LatLng(lat / 1E5, lng / 1E5));
-    }
-    return polyline;
-  }
 
   LatLngBounds _boundsFromLatLngList(List<LatLng> list) {
     double minLat = list.first.latitude;

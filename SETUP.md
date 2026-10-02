@@ -5,7 +5,7 @@ No keys are committed. You supply two git-ignored files:
 | File | What it holds |
 |---|---|
 | `sos_system/android/app/google-services.json` | Firebase project config (downloaded from Firebase console) |
-| `sos_system/secrets.json` | `MAPS_API_KEY` (read by Gradle for the map, and by Dart for Directions/Places calls) |
+| `sos_system/secrets.json` | `MAPS_API_KEY` (read by Gradle for the map, and by Dart for Routes/Places calls) |
 
 ---
 
@@ -22,20 +22,26 @@ No keys are committed. You supply two git-ignored files:
    - **Rules** tab → paste the contents of `sos_system/firestore.rules` → **Publish**
 5. Cloud Storage is **not** needed (the app doesn't use it, and new Storage buckets require the Blaze plan).
 
-## 2. Google Maps key (same project)
+## 2. Google Maps key (separate Cloud project)
 
-Your Firebase project is also a Google Cloud project. Open https://console.cloud.google.com and select it.
+Keep billing **off** the Firebase project so Firebase stays on the free Spark plan.
+Create the Maps key in its own Google Cloud project instead.
 
-1. **Billing** → link a billing account. Google requires this even for free usage; nothing is charged while you stay under the free caps.
-2. **APIs & Services → Library** → enable:
+1. https://console.cloud.google.com → project picker → **New project** `travelguard-maps`
+2. **Billing** → link a billing account to **travelguard-maps only** (required even for free usage)
+3. **APIs & Services → Library** → enable:
    - Maps SDK for Android
-   - Directions API (if it isn't offered for new projects, enable **Routes API**; the app will be migrated to it)
-   - Places API (New), for search suggestions
-3. **APIs & Services → Credentials → Create credentials → API key**
-   - **Edit key → API restrictions → Restrict key** → tick only the APIs above → Save
-4. Protect yourself from surprise bills:
-   - **Billing → Budgets & alerts** → budget ₹100, alerts at 50 / 90 / 100 %
-   - **APIs & Services → (each API) → Quotas** → cap requests per day (e.g. Directions 300/day, Places Autocomplete 300/day) so usage can never pass the free tier
+   - Routes API (the legacy Directions API is not available to new projects)
+   - Places API (New)
+4. **APIs & Services → Credentials → Create credentials → API key**
+   - Restriction type: **API restriction** → tick the 3 APIs above
+   - (Not "Android apps": the Routes/Places calls are made over HTTP from Dart)
+5. Cost guards:
+   - Quotas (per minute): Routes *Compute Routes* 30, Places *Autocomplete* 60, Places *Get Place* 30
+     (`/apis/api/routes.googleapis.com/quotas`, `/apis/api/places.googleapis.com/quotas`)
+   - **Billing → Budgets & alerts** → ₹100, alerts at 50 / 90 / 100 %
+
+Free monthly caps: Maps SDK for Android unlimited, Routes 10k, Places 10k.
 
 ## 3. Local secrets file
 
@@ -61,4 +67,4 @@ flutter run --dart-define-from-file=secrets.json
 In VS Code, **F5** already passes `--dart-define-from-file=secrets.json` (see `.vscode/launch.json`).
 
 If the map is blank → `secrets.json` missing or Maps SDK for Android not enabled.
-If "Start Journey" says `REQUEST_DENIED` → Directions API not enabled / not allowed on the key.
+If "Start Journey" shows a route error → Routes API not enabled or not ticked on the key.

@@ -11,7 +11,7 @@ A Flutter + Firebase safety app that connects a traveller (child) with their gua
 - Real-time chat between linked guardians and children
 - Emergency contacts, primary contact selection, dark mode
 
-**Stack:** Flutter (Dart), Firebase Auth, Cloud Firestore, Google Maps SDK, Directions API.
+**Stack:** Flutter (Dart), Firebase Auth, Cloud Firestore, Google Maps SDK, Routes API.
 
 ## Getting started
 
