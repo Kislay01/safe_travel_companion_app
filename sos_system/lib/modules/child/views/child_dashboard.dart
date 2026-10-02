@@ -11,6 +11,8 @@ import 'package:sos_system/common/views/custom_appbar.dart';
 import 'package:sos_system/modules/child/views/child_emergency_contact_list.dart';
 import 'package:sos_system/modules/auth/controllers/shared_preference_data.dart';
 import 'package:sos_system/services/sos_service.dart';
+import 'package:sos_system/services/alerts_service.dart';
+import 'package:sos_system/core/user_paths.dart';
 import 'package:sos_system/modules/child/views/child_notifications_page.dart';
 import 'package:sos_system/modules/child/views/journey_screen.dart';
 import 'package:sos_system/modules/child/views/movement_history_screen.dart';
@@ -66,9 +68,71 @@ class _ChildDashboardState extends State<ChildDashboard> with SingleTickerProvid
   // Load user data
   Future<void> _loadSharedPrefs() async {
     await sharedPreferenceData.getSharedPreferenceData();
+    if (!mounted) return;
     setState(() {
       _isLoading = false;
     });
+    // Safety net: make sure the check-in listener is running.
+    if (sharedPreferenceData.email.isNotEmpty) {
+      AlertsService.instance.ensureChild(
+        childEmail: sharedPreferenceData.email,
+        childName: sharedPreferenceData.name,
+      );
+    }
+  }
+
+  /// Red banner while a guardian's "Are you OK?" check-in is waiting for a reply.
+  Widget _buildCheckinBanner() {
+    final email = sharedPreferenceData.email;
+    if (email.isEmpty) return const SizedBox.shrink();
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: UserPaths.child(email)
+          .collection('checkins')
+          .where('status', isEqualTo: 'pending')
+          .snapshots(),
+      builder: (context, snap) {
+        final docs = snap.data?.docs ?? [];
+        if (docs.isEmpty) return const SizedBox.shrink();
+        final doc = docs.first;
+        final data = doc.data();
+        final who = (data['guardianName'] ?? '').toString().isNotEmpty
+            ? data['guardianName'].toString()
+            : (data['guardianEmail'] ?? 'Your guardian').toString();
+        return Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+          decoration: BoxDecoration(
+            color: Colors.red.shade50,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.red.shade300),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.health_and_safety, color: Colors.red, size: 30),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '$who is checking on you. Are you OK?',
+                  style: GoogleFonts.poppins(
+                      fontSize: 14, fontWeight: FontWeight.w600, color: Colors.red.shade900),
+                ),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: () => AlertsService.instance.answerCheckin(
+                  id: doc.id,
+                  data: data,
+                  childEmail: email,
+                  childName: sharedPreferenceData.name,
+                  context: context,
+                ),
+                child: const Text('Reply'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   // Check if location service is on/off
@@ -293,6 +357,8 @@ class _ChildDashboardState extends State<ChildDashboard> with SingleTickerProvid
                     ),
 
                     const SizedBox(height: 10),
+
+                    _buildCheckinBanner(),
 
                     // Location Sharing Info
                     Container(

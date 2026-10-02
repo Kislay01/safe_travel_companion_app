@@ -14,26 +14,35 @@ class SessionServices {
     required String email,
     required String name,
   }) async {
-    try {
+    // Each step is guarded separately so one failure (e.g. a denied
+    // permission) can't stop the others from starting.
+    await _step('notifications', () async {
       await NotificationService.instance.init();
       await NotificationService.instance.requestPermission();
+    });
 
-      if (role == 'Child') {
-        await JourneyService.instance.attach(childEmail: email, childName: name);
-        await LocationSharingService.instance.startSharing(email);
-        await AlertsService.instance.startChild(childEmail: email, childName: name);
-        if (await VoiceSosService.isEnabledInPrefs()) {
-          await VoiceSosService.instance.start();
-        }
-      } else {
-        await LocationSharingService.instance.enableBackground(
-          title: 'TravelGuard guardian mode',
-          text: 'Watching for alerts from your children',
-        );
-        await AlertsService.instance.startGuardian(email);
-      }
+    if (role == 'Child') {
+      // Check-in listener first: it must not wait behind permission prompts.
+      await _step('alerts', () => AlertsService.instance.startChild(childEmail: email, childName: name));
+      await _step('journey', () => JourneyService.instance.attach(childEmail: email, childName: name));
+      await _step('location', () => LocationSharingService.instance.startSharing(email));
+      await _step('voice', () async {
+        if (await VoiceSosService.isEnabledInPrefs()) await VoiceSosService.instance.start();
+      });
+    } else {
+      await _step('alerts', () => AlertsService.instance.startGuardian(email));
+      await _step('background', () => LocationSharingService.instance.enableBackground(
+            title: 'TravelGuard guardian mode',
+            text: 'Watching for alerts from your children',
+          ));
+    }
+  }
+
+  static Future<void> _step(String name, Future<void> Function() run) async {
+    try {
+      await run();
     } catch (e) {
-      debugPrint('SessionServices.start: $e');
+      debugPrint('SessionServices.$name: $e');
     }
   }
 
