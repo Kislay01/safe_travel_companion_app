@@ -68,3 +68,20 @@ In VS Code, **F5** already passes `--dart-define-from-file=secrets.json` (see `.
 
 If the map is blank → `secrets.json` missing or Maps SDK for Android not enabled.
 If "Start Journey" shows a route error → Routes API not enabled or not ticked on the key.
+
+## 5. Demo checklist (two phones)
+
+1. Phone A: sign up as **Guardian** → Profile → copy the invite code.
+2. Phone B: sign up as **Child**, enter the code → log in. Both are now linked.
+3. Child → Journey → type `pune rail…` → pick a suggestion → **Start Journey**
+   → guardian gets *"started a journey"* and sees the orange route on **Track Child**.
+4. Child → **End Journey** (or arrive) → guardian gets *ended* / *reached*.
+5. Guardian → Home → **Check on Child** → child's phone vibrates → tap *I'm OK*.
+6. Child → Settings → **Voice SOS** on → say *"help me"* → 5 s countdown → SOS alert + call.
+
+Notes
+- Alerts arrive while the app is running (it keeps itself alive with a small
+  "TravelGuard is protecting you" notification). If Android kills the app, alerts
+  appear the next time it opens.
+- Voice SOS listens only while the app is open on screen (Android limits the
+  microphone in the background). Some phones beep each time listening restarts.

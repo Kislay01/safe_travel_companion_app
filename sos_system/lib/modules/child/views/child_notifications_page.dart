@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sos_system/common/controllers/firestore_contact_service.dart';
+import 'package:sos_system/core/user_paths.dart';
 import 'package:sos_system/common/views/custom_appbar.dart';
 import 'package:sos_system/common/views/custom_snackbar.dart';
 import 'package:sos_system/modules/auth/controllers/shared_preference_data.dart';
@@ -271,6 +272,15 @@ class _ChildNotificationsPageState extends State<ChildNotificationsPage> {
       }, SetOptions(merge: true));
 
       await batch.commit();
+      try {
+        await UserPaths.notifyGuardian(
+          guardianEmail: guardianEmail,
+          childEmail: childEmail,
+          type: 'link_accepted',
+          title: '${childName.isNotEmpty ? childName : childEmail} accepted your request',
+          body: 'You can now see their live location and journeys.',
+        );
+      } catch (_) {}
       CustomSnackbar().showSnackBar(context, "Request accepted. Contacts added on both sides.");
     } catch (e, st) {
       // ignore: avoid_print

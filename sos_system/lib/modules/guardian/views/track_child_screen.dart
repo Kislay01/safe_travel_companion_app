@@ -10,11 +10,13 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:sos_system/common/views/custom_appbar.dart';
 import 'package:sos_system/services/routes_service.dart';
 import 'package:sos_system/common/views/custom_snackbar.dart';
-import 'package:sos_system/modules/child/views/movement_history_screen.dart';
+import 'package:sos_system/core/user_paths.dart';
+import 'package:sos_system/modules/guardian/views/checkin_status_dialog.dart';
 
 class TrackChild extends StatefulWidget {
   final String guardianEmail; // pass guardian email to filter connected children
-  const TrackChild({super.key, required this.guardianEmail});
+  final String? initialChildEmail;
+  const TrackChild({super.key, required this.guardianEmail, this.initialChildEmail});
 
   @override
   State<TrackChild> createState() => _TrackChildState();
@@ -55,7 +57,10 @@ class _TrackChildState extends State<TrackChild> {
 
   // Firestore subscription for selected child's live location
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _childLiveSub;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _childDocSub;
   String? _selectedChildEmail;
+  String _selectedChildName = '';
+  Map<String, dynamic>? _childJourney; // active journey of the selected child
   Marker? _childLiveMarker;
 
   @override
@@ -68,6 +73,7 @@ class _TrackChildState extends State<TrackChild> {
     await Future.wait([_loadCarIcon(), _fetchCurrentLocation()]);
     _initTts();
     _listenCompass();
+    await _autoSelectChild();
   }
 
   void _initTts() {
@@ -91,6 +97,7 @@ class _TrackChildState extends State<TrackChild> {
     _compassSubscription?.cancel();
     _locationSubscription?.cancel();
     _childLiveSub?.cancel();
+    _childDocSub?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
@@ -225,7 +232,7 @@ class _TrackChildState extends State<TrackChild> {
         _flutterTts.speak(_routeSteps.first.instruction);
       }
 
-      _polylines.clear();
+      _polylines.removeWhere((p) => p.polylineId.value == 'route');
       _polylines.add(
         Polyline(
           polylineId: const PolylineId("route"),
@@ -239,11 +246,6 @@ class _TrackChildState extends State<TrackChild> {
         final b = _boundsFromLatLngList(_routePoints);
         _mapController?.animateCamera(CameraUpdate.newLatLngBounds(b, 80));
       }
-
-      MovementHistoryScreen.addTrip(
-        _destinationAddress ?? "Destination",
-        currentShort: _currentShort ?? "Unknown Location",
-      );
 
       _startTracking();
     } on RoutesException catch (e) {
@@ -365,9 +367,11 @@ class _TrackChildState extends State<TrackChild> {
     );
   }
 
-  void _subscribeToChildLive(String childEmail) {
+  void _subscribeToChildLive(String childEmail, {String? name}) {
     _childLiveSub?.cancel();
     _selectedChildEmail = childEmail;
+    if (name != null) _selectedChildName = name;
+    _watchChildJourney(childEmail);
     _childLiveSub = FirebaseFirestore.instance
         .collection('Child')
         .doc(childEmail)
@@ -386,7 +390,8 @@ class _TrackChildState extends State<TrackChild> {
       _childLiveMarker = Marker(
         markerId: const MarkerId('child_live'),
         position: childPos,
-        infoWindow: InfoWindow(title: _selectedChildEmail),
+        infoWindow: InfoWindow(
+            title: _selectedChildName.isNotEmpty ? _selectedChildName : _selectedChildEmail),
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
       );
       _markers.add(_childLiveMarker!);
@@ -401,37 +406,49 @@ class _TrackChildState extends State<TrackChild> {
     });
   }
 
+  /// Picks [initialChildEmail], or the only linked child, automatically.
+  Future<void> _autoSelectChild() async {
+    if (!mounted) return;
+    if (widget.initialChildEmail != null) {
+      final kids = await UserPaths.childrenOf(widget.guardianEmail);
+      final match = kids.where((d) => d.id == UserPaths.normalize(widget.initialChildEmail!));
+      final name = match.isEmpty ? '' : (match.first.data()['name'] ?? '').toString();
+      _subscribeToChildLive(widget.initialChildEmail!, name: name);
+      return;
+    }
+    final kids = await UserPaths.childrenOf(widget.guardianEmail);
+    if (kids.length == 1 && mounted) {
+      _subscribeToChildLive(kids.first.id, name: (kids.first.data()['name'] ?? '').toString());
+    }
+  }
+
   Future<void> _showConnectedChildrenList() async {
     showModalBottomSheet(
       context: context,
       builder: (ctx) {
-        return FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          future: FirebaseFirestore.instance.collection('Child').get(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
+        return FutureBuilder(
+          future: UserPaths.childrenOf(widget.guardianEmail),
+          builder: (context, st) {
+            if (!st.hasData) {
               return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
             }
-            return FutureBuilder<List<String>>(
-              future: _fetchConnectedChildren(),
-              builder: (context, st) {
-                if (!st.hasData) return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
-                final list = st.data!;
-                if (list.isEmpty) {
-                  return SizedBox(height: 200, child: Center(child: Text("No connected children found")));
-                }
-                return ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: list.length,
-                  itemBuilder: (context, index) {
-                    final childEmail = list[index];
-                    return ListTile(
-                      title: Text(childEmail),
-                      leading: const Icon(Icons.child_care),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _subscribeToChildLive(childEmail);
-                      },
-                    );
+            final list = st.data!;
+            if (list.isEmpty) {
+              return const SizedBox(height: 200, child: Center(child: Text("No connected children found")));
+            }
+            return ListView.builder(
+              shrinkWrap: true,
+              itemCount: list.length,
+              itemBuilder: (context, index) {
+                final doc = list[index];
+                final name = (doc.data()['name'] ?? '').toString();
+                return ListTile(
+                  title: Text(name.isNotEmpty ? name : doc.id),
+                  subtitle: Text(doc.id),
+                  leading: const Icon(Icons.child_care),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _subscribeToChildLive(doc.id, name: name);
                   },
                 );
               },
@@ -442,20 +459,87 @@ class _TrackChildState extends State<TrackChild> {
     );
   }
 
-  Future<List<String>> _fetchConnectedChildren() async {
-    final childrenSnapshot = await FirebaseFirestore.instance.collection('Child').get();
-    List<String> connected = [];
-    for (var doc in childrenSnapshot.docs) {
-      final sub = await doc.reference.collection('emergency_contacts').get();
-      for (var contact in sub.docs) {
-        final em = contact.data()['email']?.toString();
-        if (em == widget.guardianEmail) {
-          connected.add(doc.id);
-          break;
-        }
+  /// Draws the selected child's active journey (route + destination).
+  void _watchChildJourney(String childEmail) {
+    _childDocSub?.cancel();
+    _childDocSub = UserPaths.child(childEmail).snapshots().listen((snap) async {
+      final id = snap.data()?['activeJourneyId'] as String?;
+      Map<String, dynamic>? journey;
+      if (id != null && id.isNotEmpty) {
+        final j = await UserPaths.child(childEmail).collection('journeys').doc(id).get();
+        if (j.data()?['status'] == 'active') journey = j.data();
       }
+      if (!mounted) return;
+      setState(() {
+        _childJourney = journey;
+        _polylines.removeWhere((p) => p.polylineId.value == 'child_route');
+        _markers.removeWhere((m) => m.markerId.value == 'child_dest');
+        if (journey != null) {
+          final pts = RoutesService.decodePolyline((journey['polyline'] ?? '').toString());
+          if (pts.isNotEmpty) {
+            _polylines.add(Polyline(
+              polylineId: const PolylineId('child_route'),
+              color: Colors.orange,
+              width: 5,
+              points: pts,
+            ));
+          }
+          _markers.add(Marker(
+            markerId: const MarkerId('child_dest'),
+            position: LatLng((journey['toLat'] as num).toDouble(), (journey['toLng'] as num).toDouble()),
+            infoWindow: InfoWindow(title: 'Destination: ${journey['to'] ?? ''}'),
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
+          ));
+        }
+      });
+    });
+  }
+
+  Widget _buildChildBanner() {
+    final email = _selectedChildEmail;
+    if (email == null) {
+      return Card(
+        child: ListTile(
+          leading: const Icon(Icons.person_search, color: Colors.blue),
+          title: const Text("Select a child to track"),
+          onTap: _showConnectedChildrenList,
+        ),
+      );
     }
-    return connected;
+    final name = _selectedChildName.isNotEmpty ? _selectedChildName : email;
+    final j = _childJourney;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+        child: Row(
+          children: [
+            Icon(j != null ? Icons.navigation : Icons.child_care,
+                color: j != null ? Colors.orange : Colors.blue),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    j != null ? 'On a journey: ${j['from'] ?? ''} → ${j['to'] ?? ''}' : 'Not on a journey',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () => sendCheckinAndShowStatus(context, childEmail: email, childName: name),
+              icon: const Icon(Icons.health_and_safety_outlined),
+              label: const Text("Check on"),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// 🔁 Refresh map and child data
@@ -472,7 +556,7 @@ class _TrackChildState extends State<TrackChild> {
     await _locationSubscription?.cancel();
     setState(() {
       _journeyStarted = false;
-      _polylines.clear();
+      _polylines.removeWhere((p) => p.polylineId.value == 'route');
     });
     CustomSnackbar().showSnackBar(context, "Navigation ended");
   }
@@ -518,6 +602,7 @@ class _TrackChildState extends State<TrackChild> {
             myLocationEnabled: true,
             zoomControlsEnabled: true,
           ),
+          Positioned(top: 12, left: 12, right: 12, child: _buildChildBanner()),
           if (!_journeyStarted)
             Positioned(
               bottom: 30,
@@ -526,7 +611,7 @@ class _TrackChildState extends State<TrackChild> {
               child: ElevatedButton.icon(
                 onPressed: _isLoading ? null : _startJourney,
                 icon: const Icon(Icons.directions, color: Colors.white,),
-                label: Text(_isLoading ? "Loading..." : "Start Tracking", style: TextStyle(color: Colors.white),),
+                label: Text(_isLoading ? "Loading..." : "Navigate to child", style: const TextStyle(color: Colors.white),),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   backgroundColor: Colors.blue,

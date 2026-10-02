@@ -7,7 +7,10 @@ import 'package:geocoding/geocoding.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:sos_system/common/views/custom_appbar.dart';
+import 'package:sos_system/services/journey_service.dart';
+import 'package:sos_system/services/places_service.dart';
 import 'package:sos_system/services/routes_service.dart';
+import 'package:uuid/uuid.dart';
 import 'package:sos_system/modules/child/views/movement_history_screen.dart';
 
 class JourneyScreen extends StatefulWidget {
@@ -50,10 +53,124 @@ class _JourneyScreenState extends State<JourneyScreen> {
   double _lastLat = 0.0;
   double _lastLng = 0.0;
 
+  // Place suggestions (Places API). One session token per search.
+  Timer? _debounce;
+  String _sessionToken = const Uuid().v4();
+  List<PlaceSuggestion> _suggestions = [];
+  bool _suggesting = false;
+  bool _endingManually = false;
+
   @override
   void initState() {
     super.initState();
-    _initialize();
+    JourneyService.instance.active.addListener(_onJourneyChanged);
+    _initialize().then((_) => _resumeActiveJourney());
+  }
+
+  /// Re-opens a journey that was still active (e.g. after an app restart).
+  void _resumeActiveJourney() {
+    final j = JourneyService.instance.active.value;
+    if (j == null || _journeyStarted || !mounted) return;
+    _setDestination(j.destination, j.toName);
+    setState(() => _journeyStarted = true);
+    _startTracking();
+  }
+
+  /// Journey finished elsewhere (arrived, or ended): reset the screen.
+  void _onJourneyChanged() {
+    if (JourneyService.instance.active.value == null && _journeyStarted && !_endingManually) {
+      _resetJourneyUi(message: "You have arrived! Your guardians have been notified.");
+    }
+  }
+
+  void _resetJourneyUi({String? message}) {
+    _locationSubscription?.cancel();
+    _locationSubscription = null;
+    if (!mounted) return;
+    setState(() {
+      _journeyStarted = false;
+      _isLoading = false;
+      _polylines.clear();
+      _routeSteps.clear();
+      _routePoints = [];
+      _currentStepIndex = 0;
+      _markers.removeWhere((m) => m.markerId.value == 'destination' || m.markerId.value == 'me');
+      _destination = null;
+      _destinationAddress = null;
+      _searchController.clear();
+    });
+    if (message != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  Future<void> _endJourney() async {
+    _endingManually = true;
+    try {
+      await JourneyService.instance.finish(arrived: false);
+    } finally {
+      _endingManually = false;
+    }
+    _resetJourneyUi(message: "Journey ended. Your guardians have been notified.");
+  }
+
+  void _onSearchChanged(String text) {
+    _debounce?.cancel();
+    if (text.trim().length < 2) {
+      setState(() => _suggestions = []);
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 350), () async {
+      if (!mounted) return;
+      setState(() => _suggesting = true);
+      final results = await PlacesService.autocomplete(
+        text,
+        sessionToken: _sessionToken,
+        near: _currentLocation,
+      );
+      if (!mounted) return;
+      setState(() {
+        _suggestions = results;
+        _suggesting = false;
+      });
+    });
+  }
+
+  Future<void> _selectSuggestion(PlaceSuggestion s) async {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _suggestions = [];
+      _searchController.text = s.fullText;
+    });
+    final details = await PlacesService.details(s.placeId, sessionToken: _sessionToken);
+    _sessionToken = const Uuid().v4();
+    if (!mounted) return;
+    if (details == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't load that place. Try again.")));
+      return;
+    }
+    _setDestination(details.location, s.mainText);
+  }
+
+  void _setDestination(LatLng dest, String name) {
+    _destination = dest;
+    _destinationAddress = name;
+    _markers.removeWhere((m) => m.markerId.value == 'destination');
+    _markers.add(
+      Marker(
+        markerId: const MarkerId('destination'),
+        position: dest,
+        infoWindow: InfoWindow(title: name),
+      ),
+    );
+    if (_currentLocation != null) {
+      final bounds = _boundsFromLatLngList([_currentLocation!, dest]);
+      _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
+    } else {
+      _mapController?.animateCamera(CameraUpdate.newLatLngZoom(dest, 14));
+    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _initialize() async {
@@ -80,6 +197,9 @@ class _JourneyScreenState extends State<JourneyScreen> {
 
   @override
   void dispose() {
+    JourneyService.instance.active.removeListener(_onJourneyChanged);
+    _debounce?.cancel();
+    _searchController.dispose();
     _compassSubscription?.cancel();
     _locationSubscription?.cancel();
     super.dispose();
@@ -134,42 +254,26 @@ class _JourneyScreenState extends State<JourneyScreen> {
 
   Future<void> _searchDestination(String query) async {
     if (query.trim().isEmpty) return;
+    if (_suggestions.isNotEmpty) {
+      await _selectSuggestion(_suggestions.first);
+      return;
+    }
     try {
       final locations = await locationFromAddress(query);
+      if (!mounted) return;
       if (locations.isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("No location found")));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text("No location found")));
         return;
       }
       final loc = locations.first;
-      _destination = LatLng(loc.latitude, loc.longitude);
-      _destinationAddress = query;
-
-      _markers.removeWhere((m) => m.markerId.value == 'destination');
-      _markers.add(
-        Marker(
-          markerId: const MarkerId('destination'),
-          position: _destination!,
-          infoWindow: InfoWindow(title: query),
-        ),
-      );
-
-      if (_currentLocation != null) {
-        final bounds = _boundsFromLatLngList([
-          _currentLocation!,
-          _destination!,
-        ]);
-        _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
-      } else {
-        _mapController?.animateCamera(
-          CameraUpdate.newLatLngZoom(_destination!, 14),
-        );
-      }
-
-      if (mounted) setState(() {});
+      _setDestination(LatLng(loc.latitude, loc.longitude), query.trim());
     } catch (e) {
       debugPrint("Search error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text("No location found")));
+      }
     }
   }
 
@@ -216,11 +320,18 @@ class _JourneyScreenState extends State<JourneyScreen> {
         _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
       }
 
-      // ✅ Save to Movement History
-      MovementHistoryScreen.addTrip(
-        _destinationAddress ?? "Destination",
-        currentShort: _currentShort ?? "Unknown Location",
-      );
+      // Save the journey and alert guardians (journey still works offline).
+      try {
+        await JourneyService.instance.start(
+          fromName: _currentShort ?? "Current location",
+          toName: _destinationAddress ?? "Destination",
+          from: _currentLocation!,
+          to: _destination!,
+          route: route,
+        );
+      } catch (e) {
+        debugPrint("Could not save journey: $e");
+      }
 
       _startTracking();
     } on RoutesException catch (e) {
@@ -276,6 +387,7 @@ class _JourneyScreenState extends State<JourneyScreen> {
       _currentLocation = pos;
 
       _showNextInstruction(pos);
+      JourneyService.instance.checkArrival(pos.latitude, pos.longitude);
 
       _mapController?.animateCamera(
         CameraUpdate.newCameraPosition(
@@ -377,6 +489,34 @@ class _JourneyScreenState extends State<JourneyScreen> {
           ),
           if (!_journeyStarted)
             Positioned(top: 16, left: 16, right: 16, child: _buildSearchBar()),
+          if (_journeyStarted)
+            Positioned(
+              top: 16,
+              left: 16,
+              right: 16,
+              child: Card(
+                child: ListTile(
+                  leading: const Icon(Icons.navigation, color: Colors.blue),
+                  title: Text("Heading to ${_destinationAddress ?? 'destination'}"),
+                  subtitle: const Text("Your guardians can see your live location"),
+                ),
+              ),
+            ),
+          if (_journeyStarted)
+            Positioned(
+              bottom: 30,
+              left: 20,
+              right: 20,
+              child: ElevatedButton.icon(
+                onPressed: _endJourney,
+                icon: const Icon(Icons.stop_circle_outlined, color: Colors.white),
+                label: const Text("End Journey", style: TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  backgroundColor: Colors.red,
+                ),
+              ),
+            ),
           if (!_journeyStarted)
             Positioned(
               bottom: 30,
@@ -398,39 +538,93 @@ class _JourneyScreenState extends State<JourneyScreen> {
   }
 
   Widget _buildSearchBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.search, color: Colors.grey),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              decoration: const InputDecoration(
-                hintText: "Search destination...",
-                border: InputBorder.none,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 6,
+                offset: const Offset(0, 3),
               ),
-              onSubmitted: _searchDestination,
+            ],
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.search, color: Colors.grey),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  style: const TextStyle(color: Colors.black87),
+                  textInputAction: TextInputAction.search,
+                  decoration: const InputDecoration(
+                    hintText: "Search destination...",
+                    hintStyle: TextStyle(color: Colors.grey),
+                    border: InputBorder.none,
+                  ),
+                  onChanged: _onSearchChanged,
+                  onSubmitted: _searchDestination,
+                ),
+              ),
+              if (_suggesting)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.send, color: Colors.blue),
+                  onPressed: () => _searchDestination(_searchController.text),
+                ),
+            ],
+          ),
+        ),
+        if (_suggestions.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: 6),
+            constraints: const BoxConstraints(maxHeight: 280),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.12),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: ListView.separated(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              itemCount: _suggestions.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, i) {
+                final sug = _suggestions[i];
+                return ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.place_outlined, color: Colors.redAccent),
+                  title: Text(sug.mainText,
+                      style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+                  subtitle: sug.secondaryText.isEmpty
+                      ? null
+                      : Text(sug.secondaryText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.black54)),
+                  onTap: () => _selectSuggestion(sug),
+                );
+              },
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.send, color: Colors.blue),
-            onPressed: () => _searchDestination(_searchController.text),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }

@@ -13,6 +13,7 @@ class AuthController {
   /// Uses email as document ID, does NOT store password in Firestore
   Future<String?> signUp(UserModel user, String password) async {
     try {
+      user.email = user.email.trim().toLowerCase();
       // Firebase Authentication signup
       UserCredential userCredential =
           await _firebaseAuth.createUserWithEmailAndPassword(
@@ -41,6 +42,7 @@ class AuthController {
 
   /// LOGIN — Validates using FirebaseAuth, checks role in Firestore
   Future<String?> login(String email, String password, String selectedRole) async {
+    email = email.trim().toLowerCase();
     try {
       // Firebase Authentication login
       await _firebaseAuth.signInWithEmailAndPassword(
@@ -60,6 +62,18 @@ class AuthController {
       }
 
       return null; // Login successful
+    } on FirebaseAuthException catch (e) {
+      return e.message;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  /// Sends a Firebase password-reset email. Returns an error message or null.
+  Future<String?> sendPasswordReset(String email) async {
+    try {
+      await _firebaseAuth.sendPasswordResetEmail(email: email.trim().toLowerCase());
+      return null;
     } on FirebaseAuthException catch (e) {
       return e.message;
     } catch (e) {

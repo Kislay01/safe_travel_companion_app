@@ -5,6 +5,7 @@ import 'package:sos_system/common/views/custom_snackbar.dart';
 import 'package:sos_system/modules/auth/controllers/auth_controller.dart';
 import 'package:sos_system/modules/auth/models/user_model.dart';
 import 'package:sos_system/modules/auth/views/login_screen.dart';
+import 'package:sos_system/services/invite_service.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -21,6 +22,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController =
       TextEditingController();
+  final TextEditingController inviteCodeController = TextEditingController();
 
   bool _passwordsMismatch = false;
   bool _obscurePassword = true; // <- added
@@ -60,6 +62,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     emailController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
+    inviteCodeController.dispose();
     _nameFocus.dispose();
     _mobileFocus.dispose();
     _emailFocus.dispose();
@@ -257,6 +260,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
               ],
 
+              const SizedBox(height: 15),
+              TextField(
+                controller: inviteCodeController,
+                textCapitalization: TextCapitalization.characters,
+                decoration: InputDecoration(
+                  labelText: "Invite code (optional)",
+                  hintText: "e.g. TG-7K3P9A",
+                  prefixIcon: const Icon(Icons.card_giftcard_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+
               const SizedBox(height: 24),
 
               // Sign Up Button
@@ -367,7 +384,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final user = UserModel(
       uid: '',
       name: nameController.text.trim(),
-      email: emailController.text.trim(),
+      email: emailController.text.trim().toLowerCase(),
       mobile: mobileController.text.trim(),
       role: selectedRole,
       password: passwordController.text.trim(),
@@ -380,14 +397,41 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
 
     if (error != null) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
       CustomSnackbar().showSnackBar(context, error);
-    } else {
-      if (mounted) {
-        // navigate to login screen after successful signup
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-        );
-      }
+      return;
     }
+
+    // Account created and signed in: create this user's own invite code,
+    // then redeem the code they entered (if any).
+    String message = "Account created. Please log in.";
+    try {
+      await InviteService.ensureCode(
+        email: user.email,
+        role: user.role,
+        name: user.name,
+      );
+      final code = inviteCodeController.text.trim();
+      if (code.isNotEmpty) {
+        final inviteError = await InviteService.redeem(
+          rawCode: code,
+          myEmail: user.email,
+          myRole: user.role,
+        );
+        message = inviteError == null
+            ? "Account created and linked using the invite code. Please log in."
+            : "Account created, but invite code failed: $inviteError";
+      }
+    } catch (e) {
+      debugPrint("Invite setup failed: $e");
+    }
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    CustomSnackbar().showSnackBar(context, message);
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+    );
   }
 }
