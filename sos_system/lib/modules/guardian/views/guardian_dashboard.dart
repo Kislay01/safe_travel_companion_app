@@ -402,7 +402,7 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
     return Scaffold(
       backgroundColor: bgColor,
       appBar: CustomAppBar(
-        title: "MyGuardian",
+        title: "TravelGuard",
         actions: [
           Padding(
             padding: const EdgeInsets.all(18),

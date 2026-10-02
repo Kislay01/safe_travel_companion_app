@@ -2,108 +2,82 @@ import "package:flutter/material.dart";
 import "package:google_fonts/google_fonts.dart";
 import "package:sos_system/common/views/custom_appbar.dart";
 
-class AboutUs extends StatelessWidget{
-
+class AboutUs extends StatelessWidget {
   const AboutUs({super.key});
+
+  static const _team = ['Kislay Upadhyay', 'Vishwajit Suryawanshi'];
 
   @override
   Widget build(BuildContext context) {
-    // final themeController = Provider.of<ThemeController>(context);
-    // final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
-      appBar: const CustomAppBar(title: "About Us",),
+      appBar: const CustomAppBar(title: "About Us"),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'MyGuardian',
-              style: GoogleFonts.poppins(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
+            Center(
+              child: ClipOval(
+                child: Image.asset(
+                  "assets/images/travelguard_logo.png",
+                  width: 120,
+                  height: 120,
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             Text(
-              "MyGuardian app is designed to keep children safe and give guardians peace of mind.It tracks live location of children sends instant SOS alerts in emergencies,and allows guardians to monitor their child's safety easily.With user-friendly features and reliable performance,my guardian app is the ultimate safety companion for families.receives instant SOS alerts with location details, enabling quick response in emergencies.",
-              style: GoogleFonts.poppins(fontSize: 16, height: 1.4),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'About MyGuardian',
-              style: GoogleFonts.poppins(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "MyGuardian app is smart safety solution built to protect children and informed at all times Accurate location tracking Quick SoS alerts for emergencies journey history and reports Instant notificattions and updates",
-              style: GoogleFonts.poppins(fontSize: 16, height: 1.4),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Mentors',
-              style: GoogleFonts.poppins(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _mentorCard("assets/images/shashi_sir.png", 'Shashi Sir'),
-              ],
+              'TravelGuard',
+              style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             Text(
-              "We extend our heartfelt gratitude to our guide Shashi Sir and Akshay Sir and mentors Prajwal Dada, Rahul Dada, and Sayli Di for their constant guidance, motivation, and encouragement. Their invaluable support, constructive feedback, and real-world insights have helped shape our learning experience and inspired us to build PrepLink as a platform that helps others in the same way they helped us.",
-              style: GoogleFonts.poppins(fontSize: 16, height: 1.4),
+              "TravelGuard keeps travellers safe and gives their guardians peace of mind. "
+              "It shares live location with trusted guardians, alerts them when a journey "
+              "starts and when you arrive, and sends an instant SOS with your location in "
+              "an emergency — by pressing a button or just by saying \"help me\".",
+              style: GoogleFonts.poppins(fontSize: 14),
             ),
             const SizedBox(height: 20),
             Text(
-              'Our Team',
-              style: GoogleFonts.poppins(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
+              'What TravelGuard does',
+              style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 10,),
-
-            _buildNavTile(Icons.person, "Pawan Ingole", context),
-            _buildNavTile(Icons.person, "Shruti Siddha", context),
-            _buildNavTile(Icons.person, "Satyam Patil", context),
-            _buildNavTile(Icons.person, "Pranav Siddha", context),
+            const SizedBox(height: 10),
+            _feature(context, Icons.my_location, "Live location sharing with your guardians"),
+            _feature(context, Icons.route, "Journeys with turn-by-turn voice directions"),
+            _feature(context, Icons.notifications_active_outlined,
+                "Guardian alerts when a journey starts, ends or is completed"),
+            _feature(context, Icons.sos, "SOS by button or voice, with your location"),
+            _feature(context, Icons.health_and_safety_outlined,
+                "\"Are you OK?\" check-ins from your guardian"),
+            _feature(context, Icons.chat_outlined, "Chat and one-tap calling"),
+            const SizedBox(height: 20),
+            Text(
+              'Developed by',
+              style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            for (final name in _team) _buildNavTile(Icons.person, name, context),
           ],
         ),
       ),
     );
   }
 
-  //  Add this method inside the class
-  Widget _mentorCard(String imagePath, String name) {
-    return Column(
-      children: [
-        ClipOval(
-          child: Image.asset(
-            imagePath,
-            width: 100,
-            height: 100,
-            fit: BoxFit.cover,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          name,
-          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
-      ],
+  Widget _feature(BuildContext context, IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(icon, color: const Color.fromRGBO(0, 123, 255, 1.0), size: 22),
+          const SizedBox(width: 12),
+          Expanded(child: Text(text, style: GoogleFonts.poppins(fontSize: 14))),
+        ],
+      ),
     );
   }
-
 
   Widget _buildNavTile(IconData icon, String title, BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -118,11 +92,7 @@ class AboutUs extends StatelessWidget{
       child: ListTile(
         leading: Icon(icon, color: const Color.fromRGBO(0, 123, 255, 1.0)),
         title: Text(title, style: GoogleFonts.poppins(fontSize: 15)),
-        // trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.grey[600], size: 18),
       ),
     );
   }
 }
-
-
-

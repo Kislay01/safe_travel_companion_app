@@ -48,7 +48,7 @@ class _LogoCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final asset = 'assets/images/MyGuardian.png';
+    final asset = 'assets/images/travelguard_logo.png';
 
     // Choose background so logo is visible on dark AppBar
     final bg = isDark ? Colors.white12 : Colors.transparent;

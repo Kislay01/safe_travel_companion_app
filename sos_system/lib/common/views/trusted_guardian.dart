@@ -26,7 +26,7 @@ class TrustedGuardian extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              "A Trusted Guardian is someone you rely on for safety and support. In MyGuardian, they are the people who will be notified instantly if you are in an emergency or need help.",
+              "A Trusted Guardian is someone you rely on for safety and support. In TravelGuard, they are the people who will be notified instantly if you are in an emergency or need help.",
               style: GoogleFonts.poppins(fontSize: 16, height: 1.4),
             ),
             const SizedBox(height: 20),
@@ -68,14 +68,14 @@ class TrustedGuardian extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              "MyGuardian shares your location only with your verified guardians. All your information remains secure, encrypted, and under your control. You can edit or remove guardians anytime from your profile settings.",
+              "TravelGuard shares your location only with your verified guardians. All your information remains secure, encrypted, and under your control. You can edit or remove guardians anytime from your profile settings.",
               style: GoogleFonts.poppins(fontSize: 16, height: 1.4),
             ),
 
             SizedBox(height: 30,),
 
             Text(
-              'Stay Safe. Stay Connected. Always with MyGuardian.',
+              'Stay Safe. Stay Connected. Always with TravelGuard.',
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,

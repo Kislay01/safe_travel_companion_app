@@ -26,7 +26,7 @@ class LocationSharingInfoPage extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              "Location sharing is a key feature of MyGuardian, designed to help your trusted guardians know where you are when it matters most. It ensures that in emergencies, your loved ones can quickly find and reach you without delay.",
+              "Location sharing is a key feature of TravelGuard, designed to help your trusted guardians know where you are when it matters most. It ensures that in emergencies, your loved ones can quickly find and reach you without delay.",
               style: GoogleFonts.poppins(fontSize: 16, height: 1.4),
             ),
             const SizedBox(height: 20),
@@ -39,7 +39,7 @@ class LocationSharingInfoPage extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              "When you enable location sharing, MyGuardian continuously updates your real-time location to your selected trusted guardians. In case of an emergency, they receive your exact location instantly, allowing them to assist you or notify authorities if needed.",
+              "When you enable location sharing, TravelGuard continuously updates your real-time location to your selected trusted guardians. In case of an emergency, they receive your exact location instantly, allowing them to assist you or notify authorities if needed.",
               style: GoogleFonts.poppins(fontSize: 16, height: 1.4),
             ),
             const SizedBox(height: 20),
@@ -75,7 +75,7 @@ class LocationSharingInfoPage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Text(
-                  '-Team MyGuardian',
+                  '-Team TravelGuard',
                   style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
