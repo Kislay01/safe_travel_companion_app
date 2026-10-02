@@ -66,7 +66,16 @@ class _GuardianEmergencyContactListState extends State<GuardianEmergencyContactL
     if (confirm != true) return false;
 
     try {
-      await contactRef.delete();
+      // Remove the link on both sides (contact doc id = the other person's email).
+      final childEmail = contactRef.id;
+      final me = guardianEmail.trim().toLowerCase();
+      final batch = _firestore.batch();
+      batch.delete(contactRef);
+      batch.delete(_firestore.collection('Child').doc(childEmail)
+          .collection('emergency_contacts').doc(me));
+      batch.delete(_firestore.collection('Guardian').doc(me)
+          .collection('children').doc(childEmail));
+      await batch.commit();
       if (!mounted) return true;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Deleted contact: $contactName')),

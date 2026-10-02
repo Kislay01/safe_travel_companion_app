@@ -10,6 +10,7 @@ import 'package:sos_system/modules/auth/views/forgot_password.dart';
 import 'package:sos_system/modules/auth/views/signup_screen.dart';
 import 'package:sos_system/modules/child/views/child_bottom_nav.dart';
 import 'package:sos_system/modules/guardian/views/guardian_bottom_nav.dart';
+import 'package:sos_system/services/session_services.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -237,7 +238,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// Handles login logic
   Future<void> _handleLogin() async {
-    final email = usernameController.text.trim();
+    final email = usernameController.text.trim().toLowerCase();
     final password = passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
@@ -275,6 +276,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
       log("User Details Saved in SharedPreferences: $userData");
 
+      SessionServices.start(
+        role: selectedRole,
+        email: (userData['email'] ?? email).toString(),
+        name: (userData['name'] ?? '').toString(),
+      );
+      if (!mounted) return;
+
       // Navigate
       if (selectedRole == "Child") {
         Navigator.pushReplacement(
@@ -292,7 +300,7 @@ class _LoginScreenState extends State<LoginScreen> {
       });
       CustomSnackbar().showSnackBar(context, "Failed to retrieve user data");
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

@@ -11,7 +11,9 @@ import 'package:sos_system/common/views/custom_appbar.dart';
 import 'package:sos_system/modules/auth/controllers/shared_preference_data.dart';
 import 'package:sos_system/modules/guardian/views/child_movement_history_screen.dart';
 import 'package:sos_system/modules/guardian/views/guardian_emergency_contact_list.dart';
-import 'package:sos_system/modules/guardian/views/guardian_notifications_page.dart';
+import 'package:sos_system/core/user_paths.dart';
+import 'package:sos_system/modules/guardian/views/checkin_status_dialog.dart';
+import 'package:sos_system/modules/guardian/views/guardian_alerts_page.dart';
 import 'package:sos_system/modules/guardian/views/track_child_screen.dart';
 
 class GuardianDashboard extends StatefulWidget {
@@ -44,6 +46,7 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
   void initState() {
     super.initState();
     _initLocation();
+    _loadConnectedChildrenAndSubscribe(); // works even if location permission is denied
     _loadSharedPrefs();
     // Start guardian notifications listener (guardianEmail is available via widget.guardianEmail)
     _startGuardianNotificationListener();
@@ -89,22 +92,54 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
     await _loadConnectedChildrenAndSubscribe();
   }
 
+  final Map<String, String> _childNames = {};
+
   Future<void> _loadConnectedChildrenAndSubscribe() async {
-    // Query all children and filter by emergency_contacts matching guardianEmail
-    final childrenSnapshot =
-        await FirebaseFirestore.instance.collection('Child').get();
-    for (var doc in childrenSnapshot.docs) {
-      final contacts =
-          await doc.reference.collection('emergency_contacts').get();
-      for (var contact in contacts.docs) {
-        final em = contact.data()['email']?.toString();
-        if (em == widget.guardianEmail) {
-          _subscribeToChildLive(doc.id);
-          break;
-        }
-      }
+    final kids = await UserPaths.childrenOf(widget.guardianEmail);
+    for (final k in kids) {
+      _childNames[k.id] = (k.data()['name'] ?? '').toString();
+      _subscribeToChildLive(k.id);
     }
-    setState(() {});
+    if (mounted) setState(() {});
+  }
+
+  String _nameOf(String email) {
+    final n = _childNames[email] ?? '';
+    return n.isNotEmpty ? n : email.split('@').first;
+  }
+
+  /// Lets the guardian pick a child (skips the picker if there is only one).
+  Future<String?> _pickChild() async {
+    if (_childNames.isEmpty) await _loadConnectedChildrenAndSubscribe();
+    if (_childNames.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("No linked children yet. Use Add Child first.")));
+      }
+      return null;
+    }
+    if (_childNames.length == 1) return _childNames.keys.first;
+    if (!mounted) return null;
+    return showModalBottomSheet<String>(
+      context: context,
+      builder: (_) => ListView(
+        shrinkWrap: true,
+        children: _childNames.keys
+            .map((e) => ListTile(
+                  leading: const Icon(Icons.child_care),
+                  title: Text(_nameOf(e)),
+                  subtitle: Text(e),
+                  onTap: () => Navigator.pop(context, e),
+                ))
+            .toList(),
+      ),
+    );
+  }
+
+  Future<void> _checkOnChild([String? email]) async {
+    final childEmail = email ?? await _pickChild();
+    if (childEmail == null || !mounted) return;
+    await sendCheckinAndShowStatus(context, childEmail: childEmail, childName: _nameOf(childEmail));
   }
 
   void _subscribeToChildLive(String childEmail) {
@@ -129,7 +164,7 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
       final marker = Marker(
         markerId: MarkerId(childEmail),
         position: pos,
-        infoWindow: InfoWindow(title: childEmail.split('@').first),
+        infoWindow: InfoWindow(title: _nameOf(childEmail)),
         onTap: () => _showChildOptions(childEmail),
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
       );
@@ -148,50 +183,53 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
   void _showChildOptions(String email) {
     showModalBottomSheet(
       context: context,
-      builder:
-          (_) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.navigation),
-                title: const Text('Track this child'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder:
-                          (_) =>
-                              TrackChild(guardianEmail: widget.guardianEmail),
-                    ),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.history),
-                title: const Text('View Movement History'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const ChildMovementHistory(),
-                    ),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.call),
-                title: const Text('Contact Child'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const GuardianEmergencyContactList(),
-                    ),
-                  );
-                },
-              ),
-            ],
+      builder: (sheetCtx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.health_and_safety_outlined, color: Colors.orange),
+            title: Text("Check on ${_nameOf(email)}"),
+            subtitle: const Text("Sends an \"Are you OK?\" alert"),
+            onTap: () {
+              Navigator.pop(sheetCtx);
+              _checkOnChild(email);
+            },
           ),
+          ListTile(
+            leading: const Icon(Icons.navigation),
+            title: const Text("Track / navigate to child"),
+            onTap: () {
+              Navigator.pop(sheetCtx);
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => TrackChild(
+                  guardianEmail: widget.guardianEmail,
+                  initialChildEmail: email,
+                ),
+              ));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.history),
+            title: const Text("Movement history"),
+            onTap: () {
+              Navigator.pop(sheetCtx);
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const ChildMovementHistory(),
+              ));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.call),
+            title: const Text("Call child"),
+            onTap: () {
+              Navigator.pop(sheetCtx);
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const GuardianEmergencyContactList(),
+              ));
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -330,6 +368,11 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
           ),
     ),
     _QuickActionItem(
+      icon: Icons.health_and_safety_outlined,
+      label: "Check on Child",
+      onTap: (ctx) => _checkOnChild(),
+    ),
+    _QuickActionItem(
       icon: Icons.call_outlined,
       label: "Contact Child",
       onTap:
@@ -367,7 +410,7 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
               onTap: () async {
                 await Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => const GuardianNotificationsPage(),
+                    builder: (_) => GuardianAlertsPage(guardianEmail: widget.guardianEmail),
                   ),
                 );
                 // mark all read after returning from notifications page

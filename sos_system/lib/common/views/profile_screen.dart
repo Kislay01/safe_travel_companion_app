@@ -7,6 +7,9 @@ import 'package:sos_system/common/views/custom_appbar.dart';
 import 'package:sos_system/common/views/custom_snackbar.dart';
 import 'package:sos_system/common/views/settings.dart';
 import 'package:sos_system/modules/auth/controllers/shared_preference_data.dart';
+import 'package:flutter/services.dart';
+import 'package:sos_system/services/invite_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -28,6 +31,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
+  String _inviteCode = '';
 
   // Firestore / Auth / Prefs
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -37,7 +41,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _loadFromPrefsThenProfile();
+    _loadFromPrefsThenProfile().then((_) => _loadInviteCode());
+  }
+
+  Future<void> _loadInviteCode() async {
+    if (email.isEmpty || role.isEmpty) return;
+    try {
+      final code = await InviteService.ensureCode(email: email, role: role, name: name);
+      if (mounted) setState(() => _inviteCode = code);
+    } catch (e) {
+      debugPrint('Invite code: $e');
+    }
+  }
+
+  String get _inviteMessage {
+    final other = role == 'Child' ? 'Guardian' : 'Child';
+    return 'Join me on TravelGuard so we can keep each other safe! '
+        'Install the app, sign up as a $other and enter my invite code $_inviteCode.';
+  }
+
+  Future<void> _shareInvite() async {
+    final uri = Uri.parse('https://wa.me/?text=${Uri.encodeComponent(_inviteMessage)}');
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      await Clipboard.setData(ClipboardData(text: _inviteMessage));
+      if (mounted) CustomSnackbar().showSnackBar(context, "Invite message copied");
+    }
+  }
+
+  Widget _buildInviteCard(Color? cardColor, Color textColor, Color subTextColor) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      color: cardColor,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Invite ${role == 'Child' ? 'a guardian' : 'your child'}",
+                style: GoogleFonts.poppins(fontSize: 13, color: subTextColor)),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _inviteCode.isEmpty ? "Generating…" : _inviteCode,
+                    style: GoogleFonts.poppins(
+                        fontSize: 22, fontWeight: FontWeight.w700, letterSpacing: 2, color: textColor),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Copy code',
+                  icon: const Icon(Icons.copy),
+                  onPressed: _inviteCode.isEmpty
+                      ? null
+                      : () async {
+                          await Clipboard.setData(ClipboardData(text: _inviteCode));
+                          if (mounted) CustomSnackbar().showSnackBar(context, "Invite code copied");
+                        },
+                ),
+                IconButton(
+                  tooltip: 'Share on WhatsApp',
+                  icon: const Icon(Icons.share),
+                  onPressed: _inviteCode.isEmpty ? null : _shareInvite,
+                ),
+              ],
+            ),
+            Text("They enter this code when signing up and you are linked automatically.",
+                style: GoogleFonts.poppins(fontSize: 12, color: subTextColor)),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -207,15 +282,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     hintColor: hintColor,
                     cardColor: cardColor,
                   ),
-                  const SizedBox(height: 10),
-                  _buildTextField(
-                    controller: _emailCtrl,
-                    label: "Email",
-                    keyboard: TextInputType.emailAddress,
-                    textColor: textColor,
-                    hintColor: hintColor,
-                    cardColor: cardColor,
-                  ),
+
                   const SizedBox(height: 18),
                   Row(
                     children: [
@@ -260,7 +327,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _saveProfileEdits() async {
     final newName = _nameCtrl.text.trim();
     final newPhone = _phoneCtrl.text.trim();
-    final newEmail = _emailCtrl.text.trim();
+    // Email is the account ID (also the Firebase login), so it can't be changed here.
+    final newEmail = email;
 
     if (newName.isEmpty || newPhone.isEmpty || newEmail.isEmpty) {
       CustomSnackbar().showSnackBar(context, "Please fill all fields.");
@@ -466,6 +534,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  if (role.isNotEmpty) _buildInviteCard(cardColor, textColor, subTextColor ?? Colors.grey),
                   const SizedBox(height: 30),
                 ],
               ),

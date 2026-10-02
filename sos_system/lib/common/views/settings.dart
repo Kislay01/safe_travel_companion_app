@@ -11,6 +11,8 @@ import 'package:sos_system/modules/auth/views/login_screen.dart';
 import 'package:sos_system/common/views/custom_appbar.dart';
 import 'package:provider/provider.dart';
 import 'package:sos_system/common/controllers/theme_controller.dart';
+import 'package:sos_system/services/session_services.dart';
+import 'package:sos_system/services/voice_sos_service.dart';
 
 class Settings extends StatefulWidget {
   const Settings({super.key});
@@ -20,8 +22,8 @@ class Settings extends StatefulWidget {
 }
 
 class _SettingsState extends State<Settings> {
-  bool _isNotificationOn = true;
-  bool _isSosOn = true;
+  bool _voiceSosOn = false;
+  bool _isChild = false;
 
   // Firestore / auth for primary contact feature
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -36,6 +38,43 @@ class _SettingsState extends State<Settings> {
   void initState() {
     super.initState();
     _initChildEmailAndContacts();
+    _loadVoiceSos();
+  }
+
+  Future<void> _loadVoiceSos() async {
+    final on = await VoiceSosService.isEnabledInPrefs();
+    if (mounted) setState(() => _voiceSosOn = on);
+  }
+
+  Future<void> _toggleVoiceSos(bool value) async {
+    if (value) {
+      final ok = await VoiceSosService.instance.start();
+      if (!ok) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Microphone permission or speech recognition unavailable.')));
+        }
+        return;
+      }
+    } else {
+      await VoiceSosService.instance.stop();
+    }
+    await VoiceSosService.saveEnabled(value);
+    if (mounted) setState(() => _voiceSosOn = value);
+  }
+
+  Future<void> _logout() async {
+    await SessionServices.stop();
+    await FirebaseAuth.instance.signOut();
+    final sp = await SharedPreferences.getInstance();
+    final keepDark = sp.getBool('isDarkTheme');
+    await sp.clear();
+    if (keepDark != null) await sp.setBool('isDarkTheme', keepDark);
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
+    );
   }
 
   Future<void> _initChildEmailAndContacts() async {
@@ -45,8 +84,9 @@ class _SettingsState extends State<Settings> {
       final storedEmail = sp.getString('email') ?? '';
       final current = _auth.currentUser?.email ?? '';
       _childEmail = storedEmail.isNotEmpty ? storedEmail : current;
+      _isChild = (sp.getString('role') ?? 'Child') == 'Child';
 
-      if (_childEmail.trim().isEmpty) {
+      if (!_isChild || _childEmail.trim().isEmpty) {
         _contacts = [];
         _selectedContactDocId = null;
         setState(() => _loadingContacts = false);
@@ -151,30 +191,21 @@ class _SettingsState extends State<Settings> {
                       context: context,
                     ),
 
-                    const SizedBox(height: 20),
-                    Text("Notifications", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 10),
+                    if (_isChild) ...[
+                      const SizedBox(height: 20),
+                      Text("Safety", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 10),
+                      _buildSwitchTile(
+                        icon: Icons.record_voice_over_outlined,
+                        title: "Voice SOS (say \"help me\")",
+                        value: _voiceSosOn,
+                        onChanged: (value) => _toggleVoiceSos(value),
+                        context: context,
+                      ),
+                    ],
 
-                    _buildSwitchTile(
-                      icon: Icons.notifications_none,
-                      title: "Push Notifications",
-                      value: _isNotificationOn,
-                      onChanged: (value) => setState(() => _isNotificationOn = value),
-                      context: context,
-                    ),
-
-                    const SizedBox(height: 5),
-
-                    _buildSwitchTile(
-                      icon: Icons.security,
-                      title: "SOS Alerts",
-                      value: _isSosOn,
-                      onChanged: (value) => setState(() => _isSosOn = value),
-                      context: context,
-                    ),
-
-
-                    // Primary Contact chooser
+                    // Primary Contact chooser (children only)
+                    if (_isChild) ...[
                     const SizedBox(height: 20),
                     Text("Primary Contact", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 10),
@@ -241,6 +272,7 @@ class _SettingsState extends State<Settings> {
                                   ],
                                 ),
                     ),
+                    ],
 
                     const SizedBox(height: 20),
                     Text("Privacy & Security", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600)),
@@ -285,7 +317,7 @@ class _SettingsState extends State<Settings> {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
                       child: Center(
-                        child: Text('You can change the primary emergency contact above.', style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey)),
+                        child: Text(_isChild ? 'You can change the primary emergency contact above.' : 'TravelGuard', style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey)),
                       ),
                     ),
                   ],
@@ -302,18 +334,7 @@ class _SettingsState extends State<Settings> {
         child: SizedBox(
           height: 45,
           child: ElevatedButton(
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              SharedPreferences sharedPreferencesObj = await SharedPreferences.getInstance();
-              await sharedPreferencesObj.clear();
-
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) {
-                  return LoginScreen();
-                }),
-                (route) => false,
-              );
-            },
+            onPressed: _logout,
             style: ElevatedButton.styleFrom(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               minimumSize: const Size(double.infinity, 56),

@@ -1,116 +1,116 @@
 import 'dart:async';
 import 'dart:developer';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:flutter_background/flutter_background.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:sos_system/core/user_paths.dart';
+import 'package:sos_system/services/journey_service.dart';
 
+/// Keeps the app alive in the background (foreground service) and, for a
+/// child, shares live location to Child/{email}/live_location/current.
 class LocationSharingService {
-  final String childEmail;
+  LocationSharingService._();
+  static final LocationSharingService instance = LocationSharingService._();
+
+  static const _tick = Duration(seconds: 15);
+  static const _minMoveMeters = 10.0;
+  static const _maxSilence = Duration(seconds: 60);
+
   Timer? _timer;
+  String? _childEmail;
+  Position? _lastSent;
+  DateTime _lastSentAt = DateTime.fromMillisecondsSinceEpoch(0);
 
-  LocationSharingService({required this.childEmail});
+  bool get isSharing => _timer != null;
 
-  /// Start continuous background location sharing
-  Future<void> startSharing() async {
-    log("🚀 Starting live location sharing for child: $childEmail");
-
-    await _ensurePermissions();
-
-    const androidConfig = FlutterBackgroundAndroidConfig(
-      notificationTitle: "Live Location Active",
-      notificationText: "Sharing your location securely with guardians",
-      notificationImportance: AndroidNotificationImportance.normal,
-      enableWifiLock: true,
-    );
-
-    bool backgroundEnabled = await FlutterBackground.initialize(androidConfig: androidConfig);
-    if (backgroundEnabled) {
-      await FlutterBackground.enableBackgroundExecution();
+  /// Keeps the process alive so Firestore listeners (alerts, check-ins) keep working.
+  Future<void> enableBackground({required String title, required String text}) async {
+    try {
+      final config = FlutterBackgroundAndroidConfig(
+        notificationTitle: title,
+        notificationText: text,
+        notificationImportance: AndroidNotificationImportance.normal,
+        enableWifiLock: true,
+      );
+      final ok = await FlutterBackground.initialize(androidConfig: config);
+      if (ok && !FlutterBackground.isBackgroundExecutionEnabled) {
+        await FlutterBackground.enableBackgroundExecution();
+      }
+    } catch (e) {
+      log('Background execution unavailable: $e');
     }
-
-    // Update every 10 seconds (adjust as needed)
-    _timer = Timer.periodic(const Duration(seconds: 10), (timer) async {
-      await _updateLocation();
-    });
   }
 
-  /// Ensure location permissions and services are available
-  Future<void> _ensurePermissions() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      log("⚠️ Location services are disabled.");
-      return;
-    }
+  Future<void> startSharing(String childEmail) async {
+    stopSharing(keepBackground: true);
+    _childEmail = UserPaths.normalize(childEmail);
+    if (!await _ensurePermissions()) return;
 
-    LocationPermission permission = await Geolocator.checkPermission();
+    await enableBackground(
+      title: 'TravelGuard is protecting you',
+      text: 'Sharing your live location with your guardians',
+    );
+    await _update(force: true);
+    _timer = Timer.periodic(_tick, (_) => _update());
+    log('Location sharing started for $_childEmail');
+  }
+
+  void stopSharing({bool keepBackground = false}) {
+    _timer?.cancel();
+    _timer = null;
+    _lastSent = null;
+    if (!keepBackground) disableBackground();
+  }
+
+  Future<void> disableBackground() async {
+    try {
+      if (FlutterBackground.isBackgroundExecutionEnabled) {
+        await FlutterBackground.disableBackgroundExecution();
+      }
+    } catch (_) {}
+  }
+
+  Future<bool> _ensurePermissions() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      log('Location services are disabled.');
+      return false;
+    }
+    var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        log("❌ Location permission denied.");
-        return;
-      }
     }
-
-    if (permission == LocationPermission.deniedForever) {
-      log("❌ Location permission permanently denied.");
-      return;
-    }
+    return permission == LocationPermission.always ||
+        permission == LocationPermission.whileInUse;
   }
 
-  /// Fetch current location and update both child + guardian collections
-  Future<void> _updateLocation() async {
+  Future<void> _update({bool force = false}) async {
+    final email = _childEmail;
+    if (email == null) return;
     try {
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
 
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final locationData = {
-        'latitude': position.latitude,
-        'longitude': position.longitude,
-        'timestamp': timestamp,
-      };
+      // Arrival detection works even when the Journey screen is not open.
+      await JourneyService.instance.checkArrival(pos.latitude, pos.longitude);
 
-      final firestore = FirebaseFirestore.instance;
+      final moved = _lastSent == null
+          ? double.infinity
+          : Geolocator.distanceBetween(_lastSent!.latitude, _lastSent!.longitude,
+              pos.latitude, pos.longitude);
+      final silentFor = DateTime.now().difference(_lastSentAt);
+      if (!force && moved < _minMoveMeters && silentFor < _maxSilence) return;
 
-      // 🔹 1. Update Child's own live location
-      await firestore
-          .collection('Child')
-          .doc(childEmail)
-          .collection('live_location')
-          .doc('current')
-          .set(locationData, SetOptions(merge: true));
-
-      // 🔹 2. Get emergency contacts (guardians) for this child
-      final childSnap = await firestore.collection('Child').doc(childEmail).get();
-      final data = childSnap.data();
-      if (data == null) {
-        log("⚠️ No child data found for $childEmail");
-        return;
-      }
-
-      final guardians = (data['emergencyContacts'] as List?)?.cast<String>() ?? [];
-
-      // 🔹 3. Update each guardian's live child data
-      for (final guardianEmail in guardians) {
-        await firestore
-            .collection('GuardianLive')
-            .doc(guardianEmail)
-            .collection('child_locations')
-            .doc(childEmail)
-            .set(locationData, SetOptions(merge: true));
-      }
-
-      log("✅ Updated live location for $childEmail to all guardians");
+      await UserPaths.child(email).collection('live_location').doc('current').set({
+        'latitude': pos.latitude,
+        'longitude': pos.longitude,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      }, SetOptions(merge: true));
+      _lastSent = pos;
+      _lastSentAt = DateTime.now();
     } catch (e) {
-      log("❌ Error updating location: $e");
+      log('Location update failed: $e');
     }
-  }
-
-  /// Stop background sharing
-  void stopSharing() {
-    _timer?.cancel();
-    FlutterBackground.disableBackgroundExecution();
-    log("🛑 Location sharing stopped for $childEmail");
   }
 }

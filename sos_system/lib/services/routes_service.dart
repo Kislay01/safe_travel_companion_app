@@ -13,11 +13,13 @@ class RouteStep {
 }
 
 class RouteResult {
+  final String encodedPolyline;
   final List<LatLng> points;
   final List<RouteStep> steps;
   final int distanceMeters;
   final int durationSeconds;
   const RouteResult({
+    required this.encodedPolyline,
     required this.points,
     required this.steps,
     required this.distanceMeters,
@@ -111,6 +113,7 @@ class RoutesService {
     final duration = (route['duration'] as String? ?? '0s').replaceAll('s', '');
 
     return RouteResult(
+      encodedPolyline: encoded,
       points: decodePolyline(encoded),
       steps: steps,
       distanceMeters: (route['distanceMeters'] as num?)?.toInt() ?? 0,

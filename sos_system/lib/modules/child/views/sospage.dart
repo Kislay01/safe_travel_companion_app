@@ -3,14 +3,11 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sos_system/common/views/custom_appbar.dart';
 import 'package:sos_system/modules/auth/controllers/shared_preference_data.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
+import 'package:sos_system/services/sos_service.dart';
 
 class SOSPage extends StatefulWidget {
   const SOSPage({super.key});
@@ -84,17 +81,12 @@ class _SOSPageState extends State<SOSPage> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('SOS Activated! Calling primary contact...')),
+      const SnackBar(content: Text('SOS activated! Alerting your guardians...')),
     );
 
-    try {
-      await _callPrimaryContactDirectly();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Call failed: $e')),
-        );
-      }
+    final message = await SosService.trigger(source: 'button');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     }
 
     // brief visible activated state, then reset
@@ -107,67 +99,6 @@ class _SOSPageState extends State<SOSPage> {
   }
 
   /// Finds primary contact and attempts direct call on Android.
-  Future<void> _callPrimaryContactDirectly() async {
-    final childId = _childEmail.trim();
-    if (childId.isEmpty) {
-      throw 'Child profile not found.';
-    }
-
-    final contactsRef = _firestore.collection('Child').doc(childId).collection('emergency_contacts');
-
-    String phoneNumber = '';
-
-    final primaryQuery = await contactsRef.where('isPrimary', isEqualTo: true).limit(1).get();
-    if (primaryQuery.docs.isNotEmpty) {
-      final data = primaryQuery.docs.first.data() as Map<String, dynamic>;
-      phoneNumber = (data['mobile'] ?? '').toString().trim();
-    } else {
-      final fallbackQuery = await contactsRef.orderBy('isPrimary', descending: true).limit(1).get();
-      if (fallbackQuery.docs.isNotEmpty) {
-        final data = fallbackQuery.docs.first.data() as Map<String, dynamic>;
-        phoneNumber = (data['mobile'] ?? '').toString().trim();
-      }
-    }
-
-    if (phoneNumber.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Primary contact phone number not available.')),
-      );
-      return;
-    }
-
-    // Platform-specific behavior:
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      // Request CALL_PHONE permission (runtime)
-      final status = await Permission.phone.status;
-      if (!status.isGranted) {
-        final req = await Permission.phone.request();
-        if (!req.isGranted) {
-          throw 'Phone permission required to place call directly.';
-        }
-      }
-
-      // Place direct call (this will try to make the call immediately on Android)
-      final didCall = await FlutterPhoneDirectCaller.callNumber(phoneNumber);
-      if (didCall != true) {
-        // Some devices may return false; still try fallback to open dialer
-        await _openDialer(phoneNumber);
-      }
-    } else {
-      // iOS and others: cannot auto-start call, open dialer as fallback
-      await _openDialer(phoneNumber);
-    }
-  }
-
-  Future<void> _openDialer(String phoneNumber) async {
-    final Uri telUri = Uri(scheme: 'tel', path: phoneNumber);
-    if (await canLaunchUrl(telUri)) {
-      await launchUrl(telUri, mode: LaunchMode.externalApplication);
-    } else {
-      throw 'Could not open dialer.';
-    }
-  }
-
   @override
   void dispose() {
     _holdTimer?.cancel();
@@ -263,7 +194,7 @@ class _SOSPageState extends State<SOSPage> {
             ),
             const SizedBox(height: 20),
             Text(
-              'Or just say "SOS"',
+              'Or say "Help me" when Voice SOS is on (Settings)',
               style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontStyle: FontStyle.italic,

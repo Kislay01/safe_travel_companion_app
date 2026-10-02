@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sos_system/common/views/splash_screen.dart';
 import 'package:sos_system/common/controllers/theme_controller.dart';
+import 'package:sos_system/core/app_navigator.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +47,7 @@ class MyApp extends StatelessWidget {
     }
 
     return MaterialApp(
+      navigatorKey: appNavigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'TravelGuard',
       themeMode: themeController.currentTheme,

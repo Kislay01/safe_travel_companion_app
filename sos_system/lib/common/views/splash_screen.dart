@@ -5,7 +5,7 @@ import 'package:sos_system/modules/auth/controllers/shared_preference_data.dart'
 import 'package:sos_system/modules/auth/views/login_screen.dart';
 import 'package:sos_system/modules/child/views/child_bottom_nav.dart';
 import 'package:sos_system/modules/guardian/views/guardian_bottom_nav.dart';
-import 'package:sos_system/services/location_sharing_service.dart';
+import 'package:sos_system/services/session_services.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -94,10 +94,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (sharedPreferenceObj.isUserLoggedIn &&
         sharedPreferenceObj.role == "Child") {
-      final locationService =
-          LocationSharingService(childEmail: sharedPreferenceObj.email);
-      locationService.startSharing();
-
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (context) => const ChildBottomNav(),
@@ -105,6 +102,7 @@ class _SplashScreenState extends State<SplashScreen>
       );
     } else if (sharedPreferenceObj.isUserLoggedIn &&
         sharedPreferenceObj.role == "Guardian") {
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (context) => GuardianBottomNav(
@@ -113,12 +111,21 @@ class _SplashScreenState extends State<SplashScreen>
         ),
       );
     } else {
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (context) => const LoginScreen(),
         ),
       );
+      return;
     }
+
+    // Start background location, alerts and voice SOS for the logged-in user.
+    SessionServices.start(
+      role: sharedPreferenceObj.role,
+      email: sharedPreferenceObj.email,
+      name: sharedPreferenceObj.name,
+    );
   }
 
   @override
