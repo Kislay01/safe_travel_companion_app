@@ -68,7 +68,7 @@ class TrustedGuardian extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              "TravelGuard shares your location only with your verified guardians. All your information remains secure, encrypted, and under your control. You can edit or remove guardians anytime from your profile settings.",
+              "TravelGuard shares your location only with your verified guardians. All your information remains secure, encrypted, and under your control. You can add guardians from Home → Add Emergency Contacts (or with an invite code), choose your primary contact in Settings, and remove a guardian anytime by swiping left on them in Emergency Contacts.",
               style: GoogleFonts.poppins(fontSize: 16, height: 1.4),
             ),
 

@@ -16,8 +16,10 @@ class ChildBottomNav extends StatefulWidget {
 class _BottomNavbarState extends State<ChildBottomNav> {
   int currentSelectedIndex = 0;
 
-  final List<Widget> _pages = [
-    ChildDashboard(),
+  void _openTab(int index) => setState(() => currentSelectedIndex = index);
+
+  late final List<Widget> _pages = [
+    ChildDashboard(onOpenTab: _openTab),
     JourneyScreen(),
     SOSPage(),
     ProfileScreen(),

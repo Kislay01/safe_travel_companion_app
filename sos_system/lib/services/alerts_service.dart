@@ -45,6 +45,7 @@ class AlertsService {
           (d['title'] ?? 'TravelGuard').toString(),
           (d['body'] ?? '').toString(),
           urgent: urgent,
+          payload: 'guardian_alerts:${UserPaths.normalize(guardianEmail)}',
         );
       }
     }, onError: (e) => debugPrint('Guardian alerts listener: $e'));
@@ -81,6 +82,7 @@ class AlertsService {
       'Are you OK?',
       '$guardianName is checking on you. Open TravelGuard to reply.',
       urgent: true,
+      payload: 'checkin',
     );
 
     final ctx = appContext;
