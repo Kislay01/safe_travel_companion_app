@@ -55,12 +55,11 @@ flutter:
 
   assets:
     - assets/images/profile.jpg
-    - assets/images/MyGuardian.png
+    - assets/images/travelguard_logo.png
     - assets/images/login_page.png
     - assets/images/car_arrow.png
-    - assets/images/shashi_sir.png
 
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/MyGuardianImage.png"  
+  image_path: "assets/images/travelguard_icon.png"  

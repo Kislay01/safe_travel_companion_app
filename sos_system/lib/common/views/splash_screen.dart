@@ -167,7 +167,7 @@ class _SplashScreenState extends State<SplashScreen>
                           ..rotateY(rotationValue),
                         child: ClipOval(
                           child: Image.asset(
-                            "assets/images/MyGuardian.png",
+                            "assets/images/travelguard_logo.png",
                             height: 300,
                             width: 300,
                           ),
@@ -181,7 +181,7 @@ class _SplashScreenState extends State<SplashScreen>
                   ScaleTransition(
                     scale: _popAnimation,
                     child: const Text(
-                      "MyGuardian",
+                      "TravelGuard",
                       style: TextStyle(
                         fontSize: 30,
                         fontWeight: FontWeight.bold,
