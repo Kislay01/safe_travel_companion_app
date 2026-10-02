@@ -70,29 +70,57 @@ class AlertsService {
     }, onError: (e) => debugPrint('Child check-in listener: $e'));
   }
 
+  /// Child side: true while the check-in listener is running.
+  bool get isListening => _sub != null;
+
+  /// Starts the child listener if it isn't running (safety net, called from the home screen).
+  Future<void> ensureChild({required String childEmail, required String childName}) async {
+    if (_sub == null) await startChild(childEmail: childEmail, childName: childName);
+  }
+
   Future<void> _handleCheckin(
       String id, Map<String, dynamic> d, String childEmail, String childName) async {
     if (!_openCheckins.add(id)) return;
-    final guardianEmail = (d['guardianEmail'] ?? '').toString();
-    final guardianName = (d['guardianName'] ?? '').toString().isNotEmpty
-        ? d['guardianName'].toString()
-        : guardianEmail;
+    final guardianName = _guardianName(d);
 
-    await NotificationService.instance.show(
-      'Are you OK?',
-      '$guardianName is checking on you. Open TravelGuard to reply.',
-      urgent: true,
-      payload: 'checkin',
-    );
+    // Phone notification (vibrates) — never let it block the on-screen prompt.
+    NotificationService.instance
+        .show(
+          'Are you OK?',
+          '$guardianName is checking on you. Open TravelGuard to reply.',
+          urgent: true,
+          payload: 'checkin',
+        )
+        .catchError((e) => debugPrint('Check-in notification failed: $e'));
 
-    final ctx = appContext;
+    try {
+      await answerCheckin(id: id, data: d, childEmail: childEmail, childName: childName);
+    } finally {
+      _openCheckins.remove(id);
+    }
+  }
+
+  static String _guardianName(Map<String, dynamic> d) {
+    final n = (d['guardianName'] ?? '').toString();
+    return n.isNotEmpty ? n : (d['guardianEmail'] ?? 'Your guardian').toString();
+  }
+
+  /// Shows the "Are you OK?" dialog and sends the reply (and SOS on "Need help").
+  /// Used by the background listener and by the banner on the child's home screen.
+  Future<void> answerCheckin({
+    required String id,
+    required Map<String, dynamic> data,
+    required String childEmail,
+    required String childName,
+    BuildContext? context,
+  }) async {
+    final ctx = context ?? appContext;
     if (ctx == null) return;
     final ok = await showDialog<bool>(
       context: ctx,
       barrierDismissible: false,
-      builder: (_) => CheckinDialog(guardianName: guardianName),
+      builder: (_) => CheckinDialog(guardianName: _guardianName(data)),
     );
-    _openCheckins.remove(id);
     if (ok == null) return;
 
     try {
@@ -100,7 +128,7 @@ class AlertsService {
         childEmail: childEmail,
         childName: childName,
         checkinId: id,
-        guardianEmail: guardianEmail,
+        guardianEmail: (data['guardianEmail'] ?? '').toString(),
         ok: ok,
       );
     } catch (e) {
