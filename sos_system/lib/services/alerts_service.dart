@@ -40,7 +40,9 @@ class AlertsService {
         final d = ch.doc.data();
         if (d == null) continue;
         final type = (d['type'] ?? '').toString();
-        final urgent = type == 'sos' || (type == 'checkin_response' && d['status'] == 'help');
+        final urgent = type == 'sos' ||
+            type == 'lost_contact' ||
+            (type == 'checkin_response' && d['status'] == 'help');
         NotificationService.instance.show(
           (d['title'] ?? 'TravelGuard').toString(),
           (d['body'] ?? '').toString(),

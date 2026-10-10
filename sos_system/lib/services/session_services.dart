@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sos_system/services/alerts_service.dart';
 import 'package:sos_system/services/journey_service.dart';
 import 'package:sos_system/services/location_sharing_service.dart';
+import 'package:sos_system/services/lost_contact_watchdog.dart';
 import 'package:sos_system/services/notification_service.dart';
 import 'package:sos_system/services/voice_sos_service.dart';
 
@@ -31,6 +32,7 @@ class SessionServices {
       });
     } else {
       await _step('alerts', () => AlertsService.instance.startGuardian(email));
+      await _step('watchdog', () => LostContactWatchdog.instance.start(email));
       await _step('background', () => LocationSharingService.instance.enableBackground(
             title: 'TravelGuard guardian mode',
             text: 'Watching for alerts from your children',
@@ -49,6 +51,7 @@ class SessionServices {
   static Future<void> stop() async {
     await VoiceSosService.instance.stop();
     AlertsService.instance.stop();
+    LostContactWatchdog.instance.stop();
     LocationSharingService.instance.stopSharing();
     JourneyService.instance.detach();
   }

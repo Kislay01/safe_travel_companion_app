@@ -78,6 +78,9 @@ If "Start Journey" shows a route error → Routes API not enabled or not ticked 
 4. Child → **End Journey** (or arrive) → guardian gets *ended* / *reached*.
 5. Guardian → Home → **Check on Child** → child's phone vibrates → tap *I'm OK*.
 6. Child → Settings → **Voice SOS** on → say *"help me"* → 5 s countdown → SOS alert + call.
+7. **Lost-contact watchdog:** child starts a journey → switch the child's phone off (or turn on
+   airplane mode) → after about 3 minutes the guardian gets *"Lost contact with …"* with the last
+   known location. Turn the phone back on → *"Back in contact"*.
 
 Notes
 - Alerts arrive while the app is running (it keeps itself alive with a small
