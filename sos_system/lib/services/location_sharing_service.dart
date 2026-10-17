@@ -21,6 +21,7 @@ class LocationSharingService {
   String? _childEmail;
   Position? _lastSent;
   DateTime _lastSentAt = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _busy = false;
 
   bool get isSharing => _timer != null;
 
@@ -86,11 +87,30 @@ class LocationSharingService {
 
   Future<void> _update({bool force = false}) async {
     final email = _childEmail;
-    if (email == null) return;
+    if (email == null || _busy) return;
+    _busy = true;
     try {
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
+      final Position pos;
+      try {
+        pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 10),
+          ),
+        );
+      } catch (e) {
+        // No GPS fix (indoors, underground): still send a heartbeat so
+        // guardians know the phone is alive, keeping the last known position.
+        log('Location unavailable: $e');
+        if (force || DateTime.now().difference(_lastSentAt) >= _maxSilence) {
+          await UserPaths.child(email).collection('live_location').doc('current').set({
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+            'gpsOk': false,
+          }, SetOptions(merge: true));
+          _lastSentAt = DateTime.now();
+        }
+        return;
+      }
 
       // Arrival detection works even when the Journey screen is not open.
       await JourneyService.instance.checkArrival(pos.latitude, pos.longitude);
@@ -106,11 +126,14 @@ class LocationSharingService {
         'latitude': pos.latitude,
         'longitude': pos.longitude,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'gpsOk': true,
       }, SetOptions(merge: true));
       _lastSent = pos;
       _lastSentAt = DateTime.now();
     } catch (e) {
       log('Location update failed: $e');
+    } finally {
+      _busy = false;
     }
   }
 }
