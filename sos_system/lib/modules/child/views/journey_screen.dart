@@ -8,6 +8,7 @@ import 'package:flutter_compass/flutter_compass.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:sos_system/common/views/custom_appbar.dart';
 import 'package:sos_system/services/journey_service.dart';
+import 'package:sos_system/services/location_sharing_service.dart';
 import 'package:sos_system/services/places_service.dart';
 import 'package:sos_system/services/routes_service.dart';
 import 'package:uuid/uuid.dart';
@@ -60,10 +61,14 @@ class _JourneyScreenState extends State<JourneyScreen> {
   bool _suggesting = false;
   bool _endingManually = false;
 
+  /// The route currently drawn; a different one from JourneyService means a re-route.
+  RouteResult? _shownRoute;
+
   @override
   void initState() {
     super.initState();
     JourneyService.instance.active.addListener(_onJourneyChanged);
+    JourneyService.instance.route.addListener(_onRouteChanged);
     _initialize().then((_) => _resumeActiveJourney());
   }
 
@@ -73,7 +78,39 @@ class _JourneyScreenState extends State<JourneyScreen> {
     if (j == null || _journeyStarted || !mounted) return;
     _setDestination(j.destination, j.toName);
     setState(() => _journeyStarted = true);
+    _onRouteChanged(); // draw the saved route after an app restart
     _startTracking();
+  }
+
+  /// The traveller left the planned route and a new one was computed:
+  /// redraw it and restart voice guidance, like Google Maps re-routing.
+  void _onRouteChanged() {
+    final r = JourneyService.instance.route.value;
+    if (!_journeyStarted || r == null || identical(r, _shownRoute) || !mounted) return;
+    final firstDraw = _shownRoute == null;
+    _shownRoute = r;
+    setState(() {
+      _routePoints = r.points;
+      _polylines
+        ..clear()
+        ..add(Polyline(
+          polylineId: const PolylineId("route"),
+          color: Colors.blueAccent,
+          width: 6,
+          points: _routePoints,
+        ));
+      if (r.steps.isNotEmpty) {
+        _routeSteps
+          ..clear()
+          ..addAll(r.steps);
+        _currentStepIndex = 0;
+      }
+    });
+    if (!firstDraw) {
+      _flutterTts.speak(r.steps.isNotEmpty
+          ? "Route updated. ${r.steps.first.instruction}"
+          : "Route updated");
+    }
   }
 
   /// Journey finished elsewhere (arrived, or ended): reset the screen.
@@ -93,6 +130,7 @@ class _JourneyScreenState extends State<JourneyScreen> {
       _polylines.clear();
       _routeSteps.clear();
       _routePoints = [];
+      _shownRoute = null;
       _currentStepIndex = 0;
       _markers.removeWhere((m) => m.markerId.value == 'destination' || m.markerId.value == 'me');
       _destination = null;
@@ -198,6 +236,7 @@ class _JourneyScreenState extends State<JourneyScreen> {
   @override
   void dispose() {
     JourneyService.instance.active.removeListener(_onJourneyChanged);
+    JourneyService.instance.route.removeListener(_onRouteChanged);
     _debounce?.cancel();
     _searchController.dispose();
     _compassSubscription?.cancel();
@@ -297,6 +336,7 @@ class _JourneyScreenState extends State<JourneyScreen> {
         origin: _currentLocation!,
         destination: _destination!,
       );
+      _shownRoute = route;
       _routePoints = route.points;
       _routeSteps
         ..clear()
@@ -387,7 +427,9 @@ class _JourneyScreenState extends State<JourneyScreen> {
       _currentLocation = pos;
 
       _showNextInstruction(pos);
-      JourneyService.instance.checkArrival(pos.latitude, pos.longitude);
+      // Shares the live position with guardians and lets the journey
+      // service detect arrival or re-route when off the planned path.
+      LocationSharingService.instance.reportPosition(pos.latitude, pos.longitude);
 
       _mapController?.animateCamera(
         CameraUpdate.newCameraPosition(

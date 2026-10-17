@@ -31,6 +31,8 @@ class GuardianAlertsPage extends StatelessWidget {
         return (Icons.signal_wifi_off, Colors.red);
       case 'contact_restored':
         return (Icons.wifi, Colors.green);
+      case 'route_changed':
+        return (Icons.alt_route, Colors.orange);
       default:
         return (Icons.notifications, Colors.grey);
     }

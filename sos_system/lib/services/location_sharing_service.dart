@@ -19,7 +19,7 @@ class LocationSharingService {
 
   Timer? _timer;
   String? _childEmail;
-  Position? _lastSent;
+  LatLngLite? _lastSent;
   DateTime _lastSentAt = DateTime.fromMillisecondsSinceEpoch(0);
   bool _busy = false;
 
@@ -89,51 +89,79 @@ class LocationSharingService {
     final email = _childEmail;
     if (email == null || _busy) return;
     _busy = true;
+    Position? pos;
     try {
-      final Position pos;
-      try {
-        pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            timeLimit: Duration(seconds: 10),
-          ),
-        );
-      } catch (e) {
-        // No GPS fix (indoors, underground): still send a heartbeat so
-        // guardians know the phone is alive, keeping the last known position.
-        log('Location unavailable: $e');
-        if (force || DateTime.now().difference(_lastSentAt) >= _maxSilence) {
-          await UserPaths.child(email).collection('live_location').doc('current').set({
-            'timestamp': DateTime.now().millisecondsSinceEpoch,
-            'gpsOk': false,
-          }, SetOptions(merge: true));
-          _lastSentAt = DateTime.now();
-        }
-        return;
-      }
-
-      // Arrival detection works even when the Journey screen is not open.
-      await JourneyService.instance.checkArrival(pos.latitude, pos.longitude);
-
-      final moved = _lastSent == null
-          ? double.infinity
-          : Geolocator.distanceBetween(_lastSent!.latitude, _lastSent!.longitude,
-              pos.latitude, pos.longitude);
-      final silentFor = DateTime.now().difference(_lastSentAt);
-      if (!force && moved < _minMoveMeters && silentFor < _maxSilence) return;
-
-      await UserPaths.child(email).collection('live_location').doc('current').set({
-        'latitude': pos.latitude,
-        'longitude': pos.longitude,
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-        'gpsOk': true,
-      }, SetOptions(merge: true));
-      _lastSent = pos;
-      _lastSentAt = DateTime.now();
+      pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 20),
+        ),
+      );
     } catch (e) {
-      log('Location update failed: $e');
+      // No fresh fix (indoors, underground, slow GPS): use a recent last-known
+      // position if there is one.
+      log('Location fix failed: $e');
+      try {
+        final last = await Geolocator.getLastKnownPosition();
+        if (last != null && DateTime.now().difference(last.timestamp).inMinutes < 2) pos = last;
+      } catch (_) {}
     } finally {
+      // Only the GPS read is guarded: database writes below never block the
+      // next tick (Firestore queues them locally when the network is slow).
       _busy = false;
     }
+
+    if (pos == null) {
+      // Still send a heartbeat so guardians know the phone is alive.
+      if (force || DateTime.now().difference(_lastSentAt) >= _maxSilence) {
+        _write(email, {'timestamp': DateTime.now().millisecondsSinceEpoch, 'gpsOk': false});
+      }
+      return;
+    }
+    reportPosition(pos.latitude, pos.longitude, force: force);
   }
+
+  /// Uploads a position (from the background timer or the Journey screen's
+  /// live stream) when the traveller has moved, or at least once a minute.
+  void reportPosition(double lat, double lng, {bool force = false}) {
+    // Arrival and re-routing work even when the Journey screen is not open.
+    JourneyService.instance
+        .onPosition(lat, lng)
+        .catchError((e) => log('Journey update failed: $e'));
+
+    final email = _childEmail;
+    if (email == null) return;
+
+    final last = _lastSent;
+    final moved = last == null
+        ? double.infinity
+        : Geolocator.distanceBetween(last.latitude, last.longitude, lat, lng);
+    final silentFor = DateTime.now().difference(_lastSentAt);
+    if (!force && moved < _minMoveMeters && silentFor < _maxSilence) return;
+
+    _write(email, {
+      'latitude': lat,
+      'longitude': lng,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'gpsOk': true,
+    });
+    _lastSent = LatLngLite(lat, lng);
+    _lastSentAt = DateTime.now();
+  }
+
+  void _write(String email, Map<String, dynamic> data) {
+    UserPaths.child(email)
+        .collection('live_location')
+        .doc('current')
+        .set(data, SetOptions(merge: true))
+        .catchError((e) => log('Location write failed: $e'));
+    if (data.containsKey('timestamp')) _lastSentAt = DateTime.now();
+  }
+}
+
+/// Minimal lat/lng pair for the "has the traveller moved?" check.
+class LatLngLite {
+  final double latitude;
+  final double longitude;
+  const LatLngLite(this.latitude, this.longitude);
 }
