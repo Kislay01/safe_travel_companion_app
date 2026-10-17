@@ -33,7 +33,7 @@ android {
 
     defaultConfig {
         applicationId = "com.kislay.travelguard"
-        minSdk = 23        // Required for Firebase Auth and Play Services
+        minSdk = flutter.minSdkVersion        // Required for Firebase Auth and Play Services
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
