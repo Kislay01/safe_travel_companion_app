@@ -1,18 +1,30 @@
 import 'dart:async';
 import 'dart:math';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:location/location.dart' as location;
-import 'package:geocoding/geocoding.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:location/location.dart' as location;
+import 'package:sos_system/common/views/add_place_sheet.dart';
 import 'package:sos_system/common/views/custom_appbar.dart';
+import 'package:sos_system/common/views/sos_hold_button.dart';
+import 'package:sos_system/core/app_theme.dart';
+import 'package:sos_system/core/user_paths.dart';
+import 'package:sos_system/modules/auth/controllers/shared_preference_data.dart';
+import 'package:sos_system/modules/child/views/movement_history_screen.dart';
+import 'package:sos_system/services/busier_route_service.dart';
 import 'package:sos_system/services/journey_service.dart';
 import 'package:sos_system/services/location_sharing_service.dart';
 import 'package:sos_system/services/places_service.dart';
+import 'package:sos_system/services/route_scoring.dart';
 import 'package:sos_system/services/routes_service.dart';
+import 'package:sos_system/services/saved_places_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
-import 'package:sos_system/modules/child/views/movement_history_screen.dart';
 
 class JourneyScreen extends StatefulWidget {
   const JourneyScreen({super.key});
@@ -28,7 +40,6 @@ class _JourneyScreenState extends State<JourneyScreen> {
   LatLng? _currentLocation;
   LatLng? _destination;
 
-  String? _currentAddress;
   String? _currentShort;
   String? _destinationAddress;
 
@@ -64,19 +75,85 @@ class _JourneyScreenState extends State<JourneyScreen> {
   /// The route currently drawn; a different one from JourneyService means a re-route.
   RouteResult? _shownRoute;
 
+  // Route options (busier-route suggestion) before starting.
+  BusierRouteResult? _options;
+  int _selected = 0;
+  bool _loadingOptions = false;
+  String? _optionsError;
+
+  // Progress while travelling.
+  double _remainingMeters = 0;
+
+  final SharedPreferenceData _prefs = SharedPreferenceData();
+  String _guardianName = '';
+  String _guardianPhone = '';
+
+  Stream<List<SavedPlace>>? _placesStream;
+  String _placesFor = '';
+
+  Stream<List<SavedPlace>> _places() {
+    final e = _email;
+    if (e.isEmpty) return Stream.value(const <SavedPlace>[]);
+    if (_placesStream == null || _placesFor != e) {
+      _placesFor = e;
+      _placesStream = SavedPlacesService.watch(e);
+    }
+    return _placesStream!;
+  }
+
+  String get _email => _prefs.email.isNotEmpty ? _prefs.email : (FirebaseAuth.instance.currentUser?.email ?? '');
+
   @override
   void initState() {
     super.initState();
     JourneyService.instance.active.addListener(_onJourneyChanged);
     JourneyService.instance.route.addListener(_onRouteChanged);
-    _initialize().then((_) => _resumeActiveJourney());
+    SavedPlacesService.pendingDestination.addListener(_onPendingPlace);
+    _initialize().then((_) {
+      _resumeActiveJourney();
+      _onPendingPlace();
+    });
+    _loadGuardian();
+  }
+
+  Future<void> _loadGuardian() async {
+    await _prefs.getSharedPreferenceData();
+    if (mounted) setState(() {}); // email is known now: saved places can load
+    final email = _email;
+    if (email.isEmpty) return;
+    try {
+      final contacts = UserPaths.child(email).collection('emergency_contacts');
+      var q = await contacts.where('isPrimary', isEqualTo: true).limit(1).get();
+      if (q.docs.isEmpty) q = await contacts.limit(1).get();
+      if (q.docs.isEmpty || !mounted) return;
+      final m = q.docs.first.data();
+      setState(() {
+        _guardianName = (m['name'] ?? '').toString().trim().split(' ').first;
+        _guardianPhone = (m['mobile'] ?? '').toString().trim();
+      });
+    } catch (_) {}
+  }
+
+  /// A saved place was tapped on Home: make it the destination.
+  void _onPendingPlace() {
+    final p = SavedPlacesService.pendingDestination.value;
+    if (p == null || !mounted) return;
+    SavedPlacesService.pendingDestination.value = null;
+    if (_journeyStarted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('End the current journey before starting a new one.')),
+      );
+      return;
+    }
+    _searchController.text = p.title;
+    _setDestination(p.location, p.title == p.name ? p.name : '${p.title} (${p.name})');
   }
 
   /// Re-opens a journey that was still active (e.g. after an app restart).
   void _resumeActiveJourney() {
     final j = JourneyService.instance.active.value;
     if (j == null || _journeyStarted || !mounted) return;
-    _setDestination(j.destination, j.toName);
+    _setDestination(j.destination, j.toName, loadOptions: false);
     setState(() => _journeyStarted = true);
     _onRouteChanged(); // draw the saved route after an app restart
     _startTracking();
@@ -91,14 +168,10 @@ class _JourneyScreenState extends State<JourneyScreen> {
     _shownRoute = r;
     setState(() {
       _routePoints = r.points;
+      _remainingMeters = r.distanceMeters.toDouble();
       _polylines
         ..clear()
-        ..add(Polyline(
-          polylineId: const PolylineId("route"),
-          color: Colors.blueAccent,
-          width: 6,
-          points: _routePoints,
-        ));
+        ..add(_line('route', _routePoints, selected: true));
       if (r.steps.isNotEmpty) {
         _routeSteps
           ..clear()
@@ -107,9 +180,7 @@ class _JourneyScreenState extends State<JourneyScreen> {
       }
     });
     if (!firstDraw) {
-      _flutterTts.speak(r.steps.isNotEmpty
-          ? "Route updated. ${r.steps.first.instruction}"
-          : "Route updated");
+      _flutterTts.speak(r.steps.isNotEmpty ? "Route updated. ${r.steps.first.instruction}" : "Route updated");
     }
   }
 
@@ -131,6 +202,8 @@ class _JourneyScreenState extends State<JourneyScreen> {
       _routeSteps.clear();
       _routePoints = [];
       _shownRoute = null;
+      _options = null;
+      _optionsError = null;
       _currentStepIndex = 0;
       _markers.removeWhere((m) => m.markerId.value == 'destination' || m.markerId.value == 'me');
       _destination = null;
@@ -152,6 +225,18 @@ class _JourneyScreenState extends State<JourneyScreen> {
     _resetJourneyUi(message: "Journey ended. Your guardians have been notified.");
   }
 
+  void _clearDestination() {
+    setState(() {
+      _destination = null;
+      _destinationAddress = null;
+      _options = null;
+      _optionsError = null;
+      _polylines.clear();
+      _markers.removeWhere((m) => m.markerId.value == 'destination');
+      _searchController.clear();
+    });
+  }
+
   void _onSearchChanged(String text) {
     _debounce?.cancel();
     if (text.trim().length < 2) {
@@ -161,11 +246,7 @@ class _JourneyScreenState extends State<JourneyScreen> {
     _debounce = Timer(const Duration(milliseconds: 350), () async {
       if (!mounted) return;
       setState(() => _suggesting = true);
-      final results = await PlacesService.autocomplete(
-        text,
-        sessionToken: _sessionToken,
-        near: _currentLocation,
-      );
+      final results = await PlacesService.autocomplete(text, sessionToken: _sessionToken, near: _currentLocation);
       if (!mounted) return;
       setState(() {
         _suggestions = results;
@@ -184,31 +265,84 @@ class _JourneyScreenState extends State<JourneyScreen> {
     _sessionToken = const Uuid().v4();
     if (!mounted) return;
     if (details == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Couldn't load that place. Try again.")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Couldn't load that place. Try again.")));
       return;
     }
     _setDestination(details.location, s.mainText);
   }
 
-  void _setDestination(LatLng dest, String name) {
+  void _setDestination(LatLng dest, String name, {bool loadOptions = true}) {
     _destination = dest;
     _destinationAddress = name;
     _markers.removeWhere((m) => m.markerId.value == 'destination');
-    _markers.add(
-      Marker(
-        markerId: const MarkerId('destination'),
-        position: dest,
-        infoWindow: InfoWindow(title: name),
-      ),
-    );
+    _markers.add(Marker(markerId: const MarkerId('destination'), position: dest, infoWindow: InfoWindow(title: name)));
     if (_currentLocation != null) {
-      final bounds = _boundsFromLatLngList([_currentLocation!, dest]);
-      _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
+      _mapController?.animateCamera(
+          CameraUpdate.newLatLngBounds(_boundsFromLatLngList([_currentLocation!, dest]), 80));
     } else {
       _mapController?.animateCamera(CameraUpdate.newLatLngZoom(dest, 14));
     }
     if (mounted) setState(() {});
+    if (loadOptions) _loadRouteOptions();
+  }
+
+  /// Fetches alternatives and marks the fastest and the busier one.
+  Future<void> _loadRouteOptions() async {
+    if (_currentLocation == null || _destination == null) return;
+    setState(() {
+      _loadingOptions = true;
+      _optionsError = null;
+      _options = null;
+    });
+    try {
+      final result = await BusierRouteService.compare(origin: _currentLocation!, destination: _destination!);
+      if (!mounted || _journeyStarted) return;
+      setState(() {
+        _options = result;
+        _selected = 0; // recommended first
+        _loadingOptions = false;
+      });
+      _drawOptions();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadingOptions = false;
+        _optionsError = e is RoutesException ? e.message : "Couldn't compare routes. You can still start.";
+      });
+    }
+  }
+
+  Polyline _line(String id, List<LatLng> pts, {required bool selected, VoidCallback? onTap}) => Polyline(
+        polylineId: PolylineId(id),
+        points: pts,
+        color: selected ? TG.teal : const Color(0xFF9DB0AB),
+        width: selected ? 7 : 5,
+        zIndex: selected ? 2 : 1,
+        consumeTapEvents: onTap != null,
+        onTap: onTap,
+      );
+
+  void _drawOptions() {
+    final o = _options;
+    if (o == null) return;
+    setState(() {
+      _polylines
+        ..clear()
+        ..addAll([
+          for (var i = 0; i < o.options.length; i++)
+            _line('opt$i', o.options[i].route.points,
+                selected: i == _selected, onTap: () => _selectOption(i)),
+        ]);
+    });
+    final pts = o.options[_selected].route.points;
+    if (pts.isNotEmpty) {
+      _mapController?.animateCamera(CameraUpdate.newLatLngBounds(_boundsFromLatLngList(pts), 70));
+    }
+  }
+
+  void _selectOption(int i) {
+    setState(() => _selected = i);
+    _drawOptions();
   }
 
   Future<void> _initialize() async {
@@ -227,9 +361,7 @@ class _JourneyScreenState extends State<JourneyScreen> {
 
   void _listenCompass() {
     _compassSubscription = FlutterCompass.events?.listen((event) {
-      if (event.heading != null) {
-        _deviceHeading = event.heading!;
-      }
+      if (event.heading != null) _deviceHeading = event.heading!;
     });
   }
 
@@ -237,6 +369,7 @@ class _JourneyScreenState extends State<JourneyScreen> {
   void dispose() {
     JourneyService.instance.active.removeListener(_onJourneyChanged);
     JourneyService.instance.route.removeListener(_onRouteChanged);
+    SavedPlacesService.pendingDestination.removeListener(_onPendingPlace);
     _debounce?.cancel();
     _searchController.dispose();
     _compassSubscription?.cancel();
@@ -246,8 +379,8 @@ class _JourneyScreenState extends State<JourneyScreen> {
 
   Future<void> _loadCarIcon() async {
     try {
-      _carIcon = await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(64, 64)),
+      _carIcon = await BitmapDescriptor.asset(
+        const ImageConfiguration(size: Size(48, 48)),
         "assets/images/car_arrow.png",
       );
     } catch (e) {
@@ -262,32 +395,22 @@ class _JourneyScreenState extends State<JourneyScreen> {
       serviceEnabled = await _location.requestService();
       if (!serviceEnabled) return;
     }
-
     var permission = await _location.hasPermission();
     if (permission == location.PermissionStatus.denied) {
       permission = await _location.requestPermission();
       if (permission != location.PermissionStatus.granted) return;
     }
-
     final loc = await _location.getLocation();
     _currentLocation = LatLng(loc.latitude!, loc.longitude!);
-
     try {
-      final placemarks = await placemarkFromCoordinates(
-        loc.latitude!,
-        loc.longitude!,
-      );
+      final placemarks = await placemarkFromCoordinates(loc.latitude!, loc.longitude!);
       if (placemarks.isNotEmpty) {
         final p = placemarks.first;
-        _currentAddress =
-            "${p.name ?? ""}, ${p.locality ?? ""}, ${p.subAdministrativeArea ?? ""}";
-        _currentShort =
-            "${p.subLocality ?? p.name ?? ""}, ${p.locality ?? p.administrativeArea ?? ""}";
+        _currentShort = "${p.subLocality ?? p.name ?? ""}, ${p.locality ?? p.administrativeArea ?? ""}";
       }
     } catch (e) {
       debugPrint("Address fetch error: $e");
     }
-
     if (mounted) setState(() {});
   }
 
@@ -301,66 +424,50 @@ class _JourneyScreenState extends State<JourneyScreen> {
       final locations = await locationFromAddress(query);
       if (!mounted) return;
       if (locations.isEmpty) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text("No location found")));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No location found")));
         return;
       }
-      final loc = locations.first;
-      _setDestination(LatLng(loc.latitude, loc.longitude), query.trim());
+      _setDestination(LatLng(locations.first.latitude, locations.first.longitude), query.trim());
     } catch (e) {
       debugPrint("Search error: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text("No location found")));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No location found")));
       }
     }
   }
 
   Future<void> _startJourney() async {
     if (_currentLocation == null || _destination == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please set both locations first")),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please set a destination first")));
       return;
     }
-
-    setState(() {
-      _isLoading = true;
-      _journeyStarted = true;
-      _routeSteps.clear();
-      _currentStepIndex = 0;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      final route = await RoutesService.computeRoute(
-        origin: _currentLocation!,
-        destination: _destination!,
-      );
-      _shownRoute = route;
-      _routePoints = route.points;
-      _routeSteps
-        ..clear()
-        ..addAll(route.steps);
-      if (_routeSteps.isNotEmpty) {
-        _flutterTts.speak(_routeSteps.first.instruction);
-      }
+      // Use the route the traveller picked; fall back to a single route.
+      final picked = _options?.options[_selected].route;
+      final route = picked ?? await RoutesService.computeRoute(origin: _currentLocation!, destination: _destination!);
 
-      _polylines.clear();
-      _polylines.add(
-        Polyline(
-          polylineId: const PolylineId("route"),
-          color: Colors.blueAccent,
-          width: 6,
-          points: _routePoints,
-        ),
-      );
-
+      setState(() {
+        _journeyStarted = true;
+        _options = null;
+        _shownRoute = route;
+        _routePoints = route.points;
+        _remainingMeters = route.distanceMeters.toDouble();
+        _routeSteps
+          ..clear()
+          ..addAll(route.steps);
+        _currentStepIndex = 0;
+        _polylines
+          ..clear()
+          ..add(_line('route', _routePoints, selected: true));
+      });
+      if (_routeSteps.isNotEmpty) _flutterTts.speak(_routeSteps.first.instruction);
       if (_routePoints.isNotEmpty) {
-        final bounds = _boundsFromLatLngList(_routePoints);
-        _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
+        _mapController?.animateCamera(CameraUpdate.newLatLngBounds(_boundsFromLatLngList(_routePoints), 80));
       }
 
-      // Save the journey and alert guardians (journey still works offline).
+      // Save the journey and alert guardians (navigation still works offline).
       try {
         await JourneyService.instance.start(
           fromName: _currentShort ?? "Current location",
@@ -372,76 +479,60 @@ class _JourneyScreenState extends State<JourneyScreen> {
       } catch (e) {
         debugPrint("Could not save journey: $e");
       }
-
       _startTracking();
     } on RoutesException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
-        setState(() {
-          _isLoading = false;
-          _journeyStarted = false;
-        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        setState(() => _journeyStarted = false);
       }
-      return;
     } catch (e) {
       debugPrint("Error fetching route: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Could not get a route. Try again.")));
-        setState(() {
-          _isLoading = false;
-          _journeyStarted = false;
-        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not get a route. Try again.")));
+        setState(() => _journeyStarted = false);
       }
-      return;
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-
-    setState(() => _isLoading = false);
   }
 
   void _startTracking() {
     _location.changeSettings(interval: 1000, distanceFilter: 2);
-
+    _locationSubscription?.cancel();
     _locationSubscription = _location.onLocationChanged.listen((loc) {
       if (loc.latitude == null || loc.longitude == null) return;
       final pos = LatLng(loc.latitude!, loc.longitude!);
 
       if (_lastLat != 0 && _lastLng != 0) {
-        final distance = _distanceBetween(pos, LatLng(_lastLat, _lastLng));
-        if (distance < 3) return;
+        if (_distanceBetween(pos, LatLng(_lastLat, _lastLng)) < 3) return;
       }
       _lastLat = pos.latitude;
       _lastLng = pos.longitude;
 
       _markers.removeWhere((m) => m.markerId.value == 'me');
-      _markers.add(
-        Marker(
-          markerId: const MarkerId('me'),
-          position: pos,
-          rotation: _deviceHeading,
-          icon: _carIcon,
-          anchor: const Offset(0.5, 0.5),
-        ),
-      );
+      _markers.add(Marker(
+        markerId: const MarkerId('me'),
+        position: pos,
+        rotation: _deviceHeading,
+        icon: _carIcon,
+        anchor: const Offset(0.5, 0.5),
+      ));
       _currentLocation = pos;
+      if (_routePoints.isNotEmpty) {
+        _remainingMeters = remainingMeters(
+          _routePoints.map((p) => GeoPt(p.latitude, p.longitude)).toList(),
+          GeoPt(pos.latitude, pos.longitude),
+        );
+      }
 
       _showNextInstruction(pos);
       // Shares the live position with guardians and lets the journey
       // service detect arrival or re-route when off the planned path.
       LocationSharingService.instance.reportPosition(pos.latitude, pos.longitude);
 
-      _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: pos,
-            zoom: 17,
-            tilt: 65,
-            bearing: _deviceHeading,
-          ),
-        ),
-      );
-
+      _mapController?.animateCamera(CameraUpdate.newCameraPosition(
+        CameraPosition(target: pos, zoom: 17, tilt: 65, bearing: _deviceHeading),
+      ));
       if (mounted) setState(() {});
     });
   }
@@ -449,7 +540,6 @@ class _JourneyScreenState extends State<JourneyScreen> {
   /// Speaks the next instruction once the current step's end point is reached.
   void _showNextInstruction(LatLng currentPos) async {
     if (_currentStepIndex >= _routeSteps.length) return;
-
     final step = _routeSteps[_currentStepIndex];
     if (_distanceBetween(currentPos, step.end) < 25) {
       _currentStepIndex++;
@@ -458,64 +548,38 @@ class _JourneyScreenState extends State<JourneyScreen> {
       } else {
         await _flutterTts.speak("You have arrived at your destination");
       }
+      if (mounted) setState(() {});
     }
   }
 
-  double _distanceBetween(LatLng a, LatLng b) {
-    const R = 6371000;
-    double dLat = _deg2rad(b.latitude - a.latitude);
-    double dLon = _deg2rad(b.longitude - a.longitude);
-    double lat1 = _deg2rad(a.latitude);
-    double lat2 = _deg2rad(b.latitude);
-
-    double h =
-        sin(dLat / 2) * sin(dLat / 2) +
-        sin(dLon / 2) * sin(dLon / 2) * cos(lat1) * cos(lat2);
-    double c = 2 * atan2(sqrt(h), sqrt(1 - h));
-    return R * c;
-  }
-
-  double _deg2rad(double deg) => deg * pi / 180;
+  double _distanceBetween(LatLng a, LatLng b) =>
+      haversine(GeoPt(a.latitude, a.longitude), GeoPt(b.latitude, b.longitude));
 
   LatLngBounds _boundsFromLatLngList(List<LatLng> list) {
-    double minLat = list.first.latitude;
-    double maxLat = list.first.latitude;
-    double minLng = list.first.longitude;
-    double maxLng = list.first.longitude;
-
+    double minLat = list.first.latitude, maxLat = list.first.latitude;
+    double minLng = list.first.longitude, maxLng = list.first.longitude;
     for (final p in list) {
-      if (p.latitude < minLat) minLat = p.latitude;
-      if (p.latitude > maxLat) maxLat = p.latitude;
-      if (p.longitude < minLng) minLng = p.longitude;
-      if (p.longitude > maxLng) maxLng = p.longitude;
+      minLat = min(minLat, p.latitude);
+      maxLat = max(maxLat, p.latitude);
+      minLng = min(minLng, p.longitude);
+      maxLng = max(maxLng, p.longitude);
     }
-
-    return LatLngBounds(
-      southwest: LatLng(minLat, minLng),
-      northeast: LatLng(maxLat, maxLng),
-    );
+    return LatLngBounds(southwest: LatLng(minLat, minLng), northeast: LatLng(maxLat, maxLng));
   }
+
+  // ------------------------------------------------------------------ UI
 
   @override
   Widget build(BuildContext context) {
-    final initialPos =
-        _currentLocation ?? const LatLng(20.5937, 78.9629); // Default: India
-
+    final initialPos = _currentLocation ?? const LatLng(20.5937, 78.9629); // Default: India
     return Scaffold(
       appBar: CustomAppBar(
         title: "Journey",
         actions: [
-          Padding(
-            padding: const EdgeInsets.all(18),
-            child: GestureDetector(
-              onTap:
-                  () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const MovementHistoryScreen(),
-                    ),
-                  ),
-              child: const Icon(Icons.list_alt_outlined, color: Colors.blue),
-            ),
+          IconButton(
+            tooltip: 'Journey history',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MovementHistoryScreen())),
+            icon: const Icon(Icons.history),
           ),
         ],
       ),
@@ -527,87 +591,297 @@ class _JourneyScreenState extends State<JourneyScreen> {
             markers: _markers,
             polylines: _polylines,
             myLocationEnabled: true,
+            myLocationButtonEnabled: !_journeyStarted,
             zoomControlsEnabled: false,
           ),
-          if (!_journeyStarted)
-            Positioned(top: 16, left: 16, right: 16, child: _buildSearchBar()),
+          if (!_journeyStarted) Positioned(top: 12, left: 16, right: 16, child: _buildSearchBar()),
+          if (_journeyStarted) Positioned(top: 12, left: 16, right: 16, child: _instructionBanner()),
           if (_journeyStarted)
-            Positioned(
-              top: 16,
-              left: 16,
-              right: 16,
-              child: Card(
-                child: ListTile(
-                  leading: const Icon(Icons.navigation, color: Colors.blue),
-                  title: Text("Heading to ${_destinationAddress ?? 'destination'}"),
-                  subtitle: const Text("Your guardians can see your live location"),
-                ),
-              ),
+            const Positioned(
+              right: 18,
+              bottom: 252,
+              child: SosHoldButton(size: 76, showRings: false, hint: ''),
             ),
-          if (_journeyStarted)
-            Positioned(
-              bottom: 30,
-              left: 20,
-              right: 20,
-              child: ElevatedButton.icon(
-                onPressed: _endJourney,
-                icon: const Icon(Icons.stop_circle_outlined, color: Colors.white),
-                label: const Text("End Journey", style: TextStyle(color: Colors.white)),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  backgroundColor: Colors.red,
-                ),
-              ),
-            ),
-          if (!_journeyStarted)
-            Positioned(
-              bottom: 30,
-              left: 20,
-              right: 20,
-              child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : _startJourney,
-                icon: const Icon(Icons.directions, color: Colors.white,),
-                label: Text(_isLoading ? "Loading..." : "Start Journey", style: TextStyle(color: Colors.white),),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  backgroundColor: Colors.blue,
-                ),
-              ),
-            ),
+          Positioned(left: 0, right: 0, bottom: 0, child: _bottomPanel()),
         ],
       ),
     );
   }
 
+  Widget _panel({required List<Widget> children}) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
+        decoration: BoxDecoration(
+          color: TG.surfaceOf(context),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [BoxShadow(color: TG.ink.withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, -2))],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(color: TG.lineOf(context), borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              ...children,
+            ],
+          ),
+        ),
+      );
+
+  Widget _bottomPanel() {
+    if (_journeyStarted) return _activePanel();
+    if (_destination == null) return const SizedBox.shrink();
+    return _optionsPanel();
+  }
+
+  Widget _optionsPanel() {
+    final muted = TG.mutedOf(context);
+    final o = _options;
+    return _panel(children: [
+      Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('GOING TO', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: muted, letterSpacing: 0.6)),
+                Text(_destinationAddress ?? 'Destination',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.manrope(fontSize: 19, fontWeight: FontWeight.w800)),
+              ],
+            ),
+          ),
+          IconButton(tooltip: 'Clear destination', onPressed: _clearDestination, icon: const Icon(Icons.close)),
+        ],
+      ),
+      const SizedBox(height: 10),
+      if (_loadingOptions)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(children: [
+            const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(width: 12),
+            Text('Comparing routes…', style: TextStyle(color: muted)),
+          ]),
+        ),
+      if (_optionsError != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(_optionsError!, style: TextStyle(color: muted)),
+        ),
+      if (o != null) ...[
+        if (o.night && o.options.any((x) => x.score.busier))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text('It’s late: we suggest the busier route, with more open places along the way.',
+                style: TextStyle(fontSize: 13, color: TG.accentTextOf(context), fontWeight: FontWeight.w600)),
+          ),
+        if (o.options.length == 1)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text('Only one route found for this trip.', style: TextStyle(fontSize: 13, color: muted)),
+          ),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 210),
+          child: ListView.separated(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            itemCount: o.options.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (_, i) => _optionTile(o.options[i], i),
+          ),
+        ),
+        if (!o.busynessChecked)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text("Couldn't check how busy the roads are right now.", style: TextStyle(fontSize: 12, color: muted)),
+          ),
+      ],
+      const SizedBox(height: 12),
+      ElevatedButton.icon(
+        onPressed: _isLoading || _loadingOptions ? null : _startJourney,
+        icon: const Icon(Icons.navigation_outlined),
+        label: Text(_isLoading ? 'Starting…' : 'Start journey'),
+      ),
+    ]);
+  }
+
+  Widget _optionTile(RouteOption opt, int i) {
+    final sel = i == _selected;
+    final badgeColor = opt.score.busier ? TG.teal : TG.mutedOf(context);
+    return Material(
+      color: sel ? TG.softOf(context) : TG.fieldOf(context),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _selectOption(i),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: sel ? TG.teal : Colors.transparent, width: 1.5),
+          ),
+          child: Row(
+            children: [
+              Icon(sel ? Icons.radio_button_checked : Icons.radio_button_off, color: sel ? TG.teal : TG.mutedOf(context)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Text(opt.badge, style: TextStyle(fontWeight: FontWeight.w800, color: badgeColor)),
+                      if (opt.score.recommended && (_options?.options.length ?? 0) > 1) ...[
+                        const SizedBox(width: 6),
+                        Text('· suggested', style: TextStyle(fontSize: 12, color: TG.mutedOf(context))),
+                      ],
+                    ]),
+                    const SizedBox(height: 2),
+                    Text(opt.detail, style: TextStyle(fontSize: 12.5, color: TG.mutedOf(context))),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _activePanel() {
+    final muted = TG.mutedOf(context);
+    final route = _shownRoute;
+    final total = (route?.distanceMeters ?? 0).toDouble();
+    final remaining = _remainingMeters.clamp(0, total > 0 ? total : _remainingMeters).toDouble();
+    final fraction = total > 0 ? (1 - remaining / total).clamp(0.0, 1.0) : 0.0;
+    final etaSec = (route == null || total <= 0) ? 0 : (route.durationSeconds * (remaining / total)).round();
+    final arrive = DateTime.now().add(Duration(seconds: etaSec));
+    final arriveText = TimeOfDay.fromDateTime(arrive).format(context);
+    final who = _guardianName.isNotEmpty ? _guardianName : 'Your guardians';
+
+    return _panel(children: [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('HEADING TO', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: muted, letterSpacing: 0.6)),
+                Text(_destinationAddress ?? 'Destination',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.manrope(fontSize: 20, fontWeight: FontWeight.w800)),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(route == null ? '—' : formatDuration(etaSec),
+                  style: GoogleFonts.manrope(fontSize: 20, fontWeight: FontWeight.w800, color: TG.accentTextOf(context))),
+              Text(route == null ? '' : '${formatDistance(remaining)} · arrive $arriveText',
+                  style: TextStyle(fontSize: 12, color: muted)),
+            ],
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(3),
+        child: LinearProgressIndicator(
+          value: fraction,
+          minHeight: 6,
+          color: TG.teal,
+          backgroundColor: TG.lineOf(context),
+        ),
+      ),
+      const SizedBox(height: 12),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(color: TG.fieldOf(context), borderRadius: BorderRadius.circular(14)),
+        child: Row(children: [
+          Icon(Icons.verified_user_outlined, size: 18, color: TG.teal),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text('$who can see you. They’ll be told when you arrive.', style: const TextStyle(fontSize: 13)),
+          ),
+        ]),
+      ),
+      const SizedBox(height: 12),
+      Row(children: [
+        Expanded(child: OutlinedButton(onPressed: _endJourney, child: const Text('End journey'))),
+        const SizedBox(width: 10),
+        Expanded(
+          child: ElevatedButton(
+            onPressed: _guardianPhone.isEmpty ? null : () => launchUrl(Uri(scheme: 'tel', path: _guardianPhone)),
+            child: Text(_guardianName.isNotEmpty ? 'Call $_guardianName' : 'Call guardian'),
+          ),
+        ),
+      ]),
+    ]);
+  }
+
+  Widget _instructionBanner() {
+    final hasStep = _currentStepIndex < _routeSteps.length;
+    final text = hasStep ? _routeSteps[_currentStepIndex].instruction : 'Heading to ${_destinationAddress ?? 'destination'}';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: TG.surfaceOf(context),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: TG.ink.withValues(alpha: 0.12), blurRadius: 14, offset: const Offset(0, 4))],
+      ),
+      child: Row(children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(color: TG.softOf(context), borderRadius: BorderRadius.circular(12)),
+          child: Icon(Icons.turn_slight_left, color: TG.accentTextOf(context)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+        ),
+      ]),
+    );
+  }
+
   Widget _buildSearchBar() {
+    final muted = TG.mutedOf(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 6,
-                offset: const Offset(0, 3),
-              ),
-            ],
+            color: TG.surfaceOf(context),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: TG.ink.withValues(alpha: 0.10), blurRadius: 8, offset: const Offset(0, 3))],
           ),
           child: Row(
             children: [
-              const Icon(Icons.search, color: Colors.grey),
+              Icon(Icons.search, color: muted),
               const SizedBox(width: 8),
               Expanded(
                 child: TextField(
                   controller: _searchController,
-                  style: const TextStyle(color: Colors.black87),
                   textInputAction: TextInputAction.search,
                   decoration: const InputDecoration(
-                    hintText: "Search destination...",
-                    hintStyle: TextStyle(color: Colors.grey),
+                    hintText: "Where are you going?",
+                    filled: false,
                     border: InputBorder.none,
                   ),
                   onChanged: _onSearchChanged,
@@ -615,33 +889,25 @@ class _JourneyScreenState extends State<JourneyScreen> {
                 ),
               ),
               if (_suggesting)
-                const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
+                const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
               else
                 IconButton(
-                  icon: const Icon(Icons.send, color: Colors.blue),
+                  tooltip: 'Search',
+                  icon: Icon(Icons.arrow_forward, color: TG.teal),
                   onPressed: () => _searchDestination(_searchController.text),
                 ),
             ],
           ),
         ),
+        if (_suggestions.isEmpty && _destination == null) _savedPlacesRow(),
         if (_suggestions.isNotEmpty)
           Container(
             margin: const EdgeInsets.only(top: 6),
             constraints: const BoxConstraints(maxHeight: 280),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: TG.surfaceOf(context),
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.12),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
+              boxShadow: [BoxShadow(color: TG.ink.withValues(alpha: 0.12), blurRadius: 8, offset: const Offset(0, 3))],
             ),
             child: ListView.separated(
               padding: EdgeInsets.zero,
@@ -652,21 +918,55 @@ class _JourneyScreenState extends State<JourneyScreen> {
                 final sug = _suggestions[i];
                 return ListTile(
                   dense: true,
-                  leading: const Icon(Icons.place_outlined, color: Colors.redAccent),
-                  title: Text(sug.mainText,
-                      style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+                  leading: Icon(Icons.place_outlined, color: TG.teal),
+                  title: Text(sug.mainText, style: const TextStyle(fontWeight: FontWeight.w700)),
                   subtitle: sug.secondaryText.isEmpty
                       ? null
-                      : Text(sug.secondaryText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.black54)),
+                      : Text(sug.secondaryText, maxLines: 1, overflow: TextOverflow.ellipsis),
                   onTap: () => _selectSuggestion(sug),
                 );
               },
             ),
           ),
       ],
+    );
+  }
+
+  Widget _savedPlacesRow() {
+    return StreamBuilder<List<SavedPlace>>(
+      stream: _places(),
+      builder: (context, snap) {
+        final places = snap.data ?? const <SavedPlace>[];
+        return Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: SizedBox(
+            height: 40,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (final p in places)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ActionChip(
+                      avatar: Icon(p.icon, size: 18, color: TG.teal),
+                      label: Text(p.title),
+                      onPressed: () {
+                        _searchController.text = p.title;
+                        _setDestination(p.location, p.title == p.name ? p.name : '${p.title} (${p.name})');
+                      },
+                    ),
+                  ),
+                if (places.length < SavedPlacesService.maxPlaces)
+                  ActionChip(
+                    avatar: const Icon(Icons.add, size: 18),
+                    label: Text(places.isEmpty ? 'Save a place' : 'Add'),
+                    onPressed: _email.isEmpty ? null : () => showAddPlaceSheet(context, email: _email),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

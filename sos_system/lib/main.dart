@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:sos_system/common/views/splash_screen.dart';
 import 'package:sos_system/common/controllers/theme_controller.dart';
 import 'package:sos_system/core/app_navigator.dart';
+import 'package:sos_system/core/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,24 +52,8 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'TravelGuard',
       themeMode: themeController.currentTheme,
-      theme: ThemeData(
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: Colors.grey[100],
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-        ),
-        cardColor: Colors.white,
-      ),
-      darkTheme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF121212),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF121212),
-          foregroundColor: Colors.white,
-        ),
-        cardColor: const Color(0xFF1E1E1E),
-      ),
+      theme: TG.theme(Brightness.light),
+      darkTheme: TG.theme(Brightness.dark),
 
       // Start with your SplashScreen (it can navigate to ChildBottomNav when ready)
       home: const SplashScreen(),

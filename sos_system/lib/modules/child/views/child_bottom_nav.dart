@@ -4,7 +4,6 @@ import 'package:sos_system/modules/child/views/child_chat_list.dart';
 import 'package:sos_system/common/views/profile_screen.dart';
 import 'package:sos_system/modules/child/views/child_dashboard.dart';
 import 'package:sos_system/modules/child/views/journey_screen.dart';
-import 'package:sos_system/modules/child/views/sospage.dart';
 
 class ChildBottomNav extends StatefulWidget {
   const ChildBottomNav({super.key});
@@ -18,12 +17,13 @@ class _BottomNavbarState extends State<ChildBottomNav> {
 
   void _openTab(int index) => setState(() => currentSelectedIndex = index);
 
+  // SOS lives on Home (big hold button) and on the Journey screen, so it no
+  // longer needs its own tab.
   late final List<Widget> _pages = [
     ChildDashboard(onOpenTab: _openTab),
-    JourneyScreen(),
-    SOSPage(),
-    ProfileScreen(),
+    const JourneyScreen(),
     ChildChatList(),
+    ProfileScreen(),
   ];
 
   @override
@@ -44,52 +44,17 @@ class _BottomNavbarState extends State<ChildBottomNav> {
       child: Scaffold(
         body: IndexedStack(index: currentSelectedIndex, children: _pages),
 
-        bottomNavigationBar: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          currentIndex: currentSelectedIndex,
-          selectedItemColor: Colors.blue,
-          unselectedItemColor: Colors.grey,
-          onTap: (value) {
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: currentSelectedIndex,
+          onDestinationSelected: (value) {
             log("Index: $value");
-            setState(() {
-              currentSelectedIndex = value;
-            });
+            setState(() => currentSelectedIndex = value);
           },
-          items: [
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: "Home",
-            ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.map),
-              label: "Journey",
-            ),
-
-            // 🔴 Custom Red Circular SOS Button
-            BottomNavigationBarItem(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
-                  color: Colors.red, // red circular background
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.sos,
-                  color: Colors.white, // white SOS icon
-                  size: 26,
-                ),
-              ),
-              label: "SOS",
-            ),
-
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.people),
-              label: "Profile",
-            ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.chat),
-              label: "Chat",
-            ),
+          destinations: const [
+            NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+            NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map), label: 'Journey'),
+            NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Chat'),
+            NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
           ],
         ),
       ),

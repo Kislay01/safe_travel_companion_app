@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:sos_system/core/app_theme.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -20,21 +21,22 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       title: Text(
         title,
-        style: GoogleFonts.poppins(
-          fontSize: 22,
-          fontWeight: FontWeight.w600,
-          color: isDark ? Colors.white : Colors.black,
+        style: GoogleFonts.manrope(
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+          color: TG.inkOf(context),
         ),
       ),
       centerTitle: true,
-      backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
+      backgroundColor: TG.bgOf(context),
       elevation: 0,
+      scrolledUnderElevation: 0,
       leading: leading ?? Padding(
         padding: const EdgeInsets.all(8.0),
         child: _LogoCircle(isDark: isDark),
       ),
       actions: actions,
-      iconTheme: IconThemeData(color: isDark ? Colors.white : Colors.black),
+      iconTheme: IconThemeData(color: TG.inkOf(context)),
     );
   }
 

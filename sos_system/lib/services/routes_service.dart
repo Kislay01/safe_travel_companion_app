@@ -18,13 +18,17 @@ class RouteResult {
   final List<RouteStep> steps;
   final int distanceMeters;
   final int durationSeconds;
+
+  /// Duration without live traffic (equals [durationSeconds] when traffic wasn't requested).
+  final int staticDurationSeconds;
   const RouteResult({
     required this.encodedPolyline,
     required this.points,
     required this.steps,
     required this.distanceMeters,
     required this.durationSeconds,
-  });
+    int? staticDurationSeconds,
+  }) : staticDurationSeconds = staticDurationSeconds ?? durationSeconds;
 }
 
 class RoutesException implements Exception {
@@ -40,14 +44,41 @@ class RoutesService {
 
   static const _endpoint =
       'https://routes.googleapis.com/directions/v2:computeRoutes';
-  static const _fieldMask = 'routes.distanceMeters,routes.duration,'
+  static const _fieldMask = 'routes.distanceMeters,routes.duration,routes.staticDuration,'
       'routes.polyline.encodedPolyline,'
       'routes.legs.steps.navigationInstruction,routes.legs.steps.endLocation';
 
+  /// One route (used when starting without options and for automatic re-routing).
   static Future<RouteResult> computeRoute({
     required LatLng origin,
     required LatLng destination,
     String travelMode = 'DRIVE',
+  }) async {
+    final list = await _compute(origin: origin, destination: destination, travelMode: travelMode);
+    return list.first;
+  }
+
+  /// Up to 3 alternative routes with live-traffic durations. The order is
+  /// not guaranteed to be fastest-first, so callers compare durations.
+  static Future<List<RouteResult>> computeAlternatives({
+    required LatLng origin,
+    required LatLng destination,
+  }) {
+    return _compute(
+      origin: origin,
+      destination: destination,
+      travelMode: 'DRIVE',
+      alternatives: true,
+      trafficAware: true,
+    );
+  }
+
+  static Future<List<RouteResult>> _compute({
+    required LatLng origin,
+    required LatLng destination,
+    required String travelMode,
+    bool alternatives = false,
+    bool trafficAware = false,
   }) async {
     if (!AppConfig.hasMapsKey) {
       throw RoutesException(
@@ -70,6 +101,8 @@ class RoutesService {
               'travelMode': travelMode,
               'languageCode': 'en',
               'units': 'METRIC',
+              if (alternatives) 'computeAlternativeRoutes': true,
+              if (trafficAware) 'routingPreference': 'TRAFFIC_AWARE',
             }),
           )
           .timeout(const Duration(seconds: 15));
@@ -91,8 +124,13 @@ class RoutesService {
     if (routes == null || routes.isEmpty) {
       throw RoutesException('No route found to this destination.');
     }
-    final route = routes.first as Map<String, dynamic>;
+    return routes.map((r) => _parse(r as Map<String, dynamic>)).toList();
+  }
 
+  static int _seconds(Object? v) =>
+      int.tryParse((v as String? ?? '0s').replaceAll('s', '').split('.').first) ?? 0;
+
+  static RouteResult _parse(Map<String, dynamic> route) {
     final steps = <RouteStep>[];
     for (final leg in (route['legs'] as List? ?? [])) {
       for (final s in ((leg as Map)['steps'] as List? ?? [])) {
@@ -110,14 +148,16 @@ class RoutesService {
 
     final encoded =
         (route['polyline'] as Map?)?['encodedPolyline'] as String? ?? '';
-    final duration = (route['duration'] as String? ?? '0s').replaceAll('s', '');
+    final duration = _seconds(route['duration']);
+    final staticDuration = route.containsKey('staticDuration') ? _seconds(route['staticDuration']) : duration;
 
     return RouteResult(
       encodedPolyline: encoded,
       points: decodePolyline(encoded),
       steps: steps,
       distanceMeters: (route['distanceMeters'] as num?)?.toInt() ?? 0,
-      durationSeconds: int.tryParse(duration) ?? 0,
+      durationSeconds: duration,
+      staticDurationSeconds: staticDuration,
     );
   }
 
