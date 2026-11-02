@@ -25,8 +25,8 @@ class _BottomNavbarState extends State<GuardianBottomNav> {
         onOpenTab: (i) => setState(() => currentSelectedIndex = i),
       ),
       TrackChild(guardianEmail: widget.guardianEmail),
-      const ProfileScreen(),
       const GuardianChatList(),
+      const ProfileScreen(),
     ];
 
     return PopScope(
@@ -47,8 +47,8 @@ class _BottomNavbarState extends State<GuardianBottomNav> {
           destinations: const [
             NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
             NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map), label: 'Track'),
-            NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
             NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Chat'),
+            NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
           ],
         ),
       ),

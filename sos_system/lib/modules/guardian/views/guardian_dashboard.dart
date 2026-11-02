@@ -7,12 +7,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart' as location;
 import 'package:sos_system/common/views/add_emergency_contacts.dart';
-import 'package:sos_system/common/views/custom_appbar.dart';
+import 'package:sos_system/core/app_theme.dart';
 import 'package:sos_system/modules/auth/controllers/shared_preference_data.dart';
 import 'package:sos_system/modules/guardian/views/child_movement_history_screen.dart';
 import 'package:sos_system/modules/guardian/views/guardian_emergency_contact_list.dart';
 import 'package:sos_system/core/user_paths.dart';
 import 'package:sos_system/modules/child/views/movement_history_screen.dart';
+import 'package:sos_system/services/route_scoring.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:sos_system/modules/guardian/views/checkin_status_dialog.dart';
 import 'package:sos_system/modules/guardian/views/guardian_alerts_page.dart';
@@ -101,12 +102,23 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
   final Map<String, String> _childNames = {};
   final Map<String, String> _childPhones = {};
 
+  /// Live status per child, shown in the "Your children" card.
+  final Map<String, LatLng> _childPos = {};
+  final Map<String, int> _childSeenMs = {};
+  final Map<String, bool> _childGpsOk = {};
+  final Map<String, String?> _childJourneyTo = {};
+  final Map<String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>> _journeySubs = {};
+
+  /// Newest unread urgent alert (SOS, lost contact, "need help" reply).
+  QueryDocumentSnapshot<Map<String, dynamic>>? _urgent;
+
   Future<void> _loadConnectedChildrenAndSubscribe() async {
     final kids = await UserPaths.childrenOf(widget.guardianEmail);
     for (final k in kids) {
       _childNames[k.id] = (k.data()['name'] ?? '').toString();
       _childPhones[k.id] = (k.data()['mobile'] ?? '').toString().trim();
       _subscribeToChildLive(k.id);
+      _subscribeToChildJourney(k.id);
     }
     if (mounted) setState(() {});
   }
@@ -179,18 +191,27 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
       if (!snap.exists) return;
       final data = snap.data();
       if (data == null) return;
+      final ts = data['timestamp'];
+      if (ts is num) _childSeenMs[childEmail] = ts.toInt();
+      _childGpsOk[childEmail] = data['gpsOk'] != false;
+      if (data['latitude'] is! num || data['longitude'] is! num) {
+        if (mounted) setState(() {});
+        return;
+      }
       final lat = (data['latitude'] as num).toDouble();
       final lng = (data['longitude'] as num).toDouble();
       final pos = LatLng(lat, lng);
+      _childPos[childEmail] = pos;
 
       final marker = Marker(
         markerId: MarkerId(childEmail),
         position: pos,
         infoWindow: InfoWindow(title: _nameOf(childEmail)),
         onTap: () => _showChildOptions(childEmail),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
       );
 
+      if (!mounted) return;
       setState(() {
         _childMarkers[childEmail] = marker;
       });
@@ -202,6 +223,19 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
     _liveSubs[childEmail] = sub;
   }
 
+  void _subscribeToChildJourney(String childEmail) {
+    if (_journeySubs.containsKey(childEmail)) return;
+    _journeySubs[childEmail] = UserPaths.child(childEmail)
+        .collection('journeys')
+        .where('status', isEqualTo: 'active')
+        .limit(1)
+        .snapshots()
+        .listen((snap) {
+      final to = snap.docs.isEmpty ? null : (snap.docs.first.data()['to'] ?? 'destination').toString();
+      if (mounted) setState(() => _childJourneyTo[childEmail] = to);
+    }, onError: (_) {});
+  }
+
   void _showChildOptions(String email) {
     showModalBottomSheet(
       context: context,
@@ -209,7 +243,7 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            leading: const Icon(Icons.health_and_safety_outlined, color: Colors.orange),
+            leading: const Icon(Icons.health_and_safety_outlined, color: TG.teal),
             title: Text("Check on ${_nameOf(email)}"),
             subtitle: const Text("Sends an \"Are you OK?\" alert"),
             onTap: () {
@@ -298,6 +332,9 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
     for (var s in _liveSubs.values) {
       s.cancel();
     }
+    for (final s in _journeySubs.values) {
+      s.cancel();
+    }
     _mapController?.dispose();
     _guardianNotifSub?.cancel();
     _guardianRequestSub?.cancel();
@@ -330,11 +367,31 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
       _guardianNotifSub = coll.snapshots().listen(
         (snap) {
           final hasUnread = snap.docs.any((d) {
-            final map = d.data() as Map<String, dynamic>? ?? {};
+            final map = d.data();
             return !(map['read'] == true || map['viewed'] == true);
           });
+          QueryDocumentSnapshot<Map<String, dynamic>>? urgent;
+          var newest = 0;
+          for (final d in snap.docs) {
+            final m = d.data();
+            if (m['read'] == true || m['viewed'] == true) continue;
+            final t = m['type'];
+            final isUrgent = t == 'sos' || t == 'lost_contact' || (t == 'checkin_response' && m['status'] == 'help');
+            if (!isUrgent) continue;
+            final at = m['createdAt'];
+            final ms = at is Timestamp ? at.millisecondsSinceEpoch : 0;
+            if (urgent == null || ms > newest) {
+              urgent = d;
+              newest = ms;
+            }
+          }
 
-          if (mounted) setState(() => _hasUnreadNotifications = hasUnread);
+          if (mounted) {
+            setState(() {
+              _hasUnreadNotifications = hasUnread;
+              _urgent = urgent;
+            });
+          }
         },
         onError: (e) {
           // optional: handle/log error
@@ -360,293 +417,273 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
 
       final batch = _firestore.batch();
       for (var doc in snap.docs) {
-        final data = doc.data() as Map<String, dynamic>? ?? {};
+        final data = doc.data();
         if (data['read'] != true) {
           batch.update(doc.reference, {'read': true});
         }
       }
       await batch.commit();
-      if (mounted) setState(() => _hasUnreadNotifications = false);
+      if (mounted) {
+        setState(() {
+          _hasUnreadNotifications = false;
+          _urgent = null;
+        });
+      }
     } catch (e) {
       // ignore
     }
   }
   // --------------------------------------------------------------------
 
-  List<_QuickActionItem> get _actions => [
-    _QuickActionItem(
-      icon: Icons.map_outlined,
-      label: "Track Child",
-      onTap: (ctx) {
-        if (widget.onOpenTab != null) {
-          widget.onOpenTab!(1);
-        } else {
-          Navigator.of(ctx).push(
-            MaterialPageRoute(
-              builder: (_) => TrackChild(guardianEmail: widget.guardianEmail),
-            ),
-          );
-        }
-      },
-    ),
-    _QuickActionItem(
-      icon: Icons.person_add,
-      label: "Add Child",
-      onTap:
-          (ctx) => Navigator.of(ctx).push(
-            MaterialPageRoute(
-              builder: (_) => AddEmergencyContacts(isGuardian: true),
-            ),
-          ),
-    ),
-    _QuickActionItem(
-      icon: Icons.add_location_alt_outlined,
-      label: "Child Movement",
-      onTap:
-          (ctx) => Navigator.of(ctx).push(
-            MaterialPageRoute(builder: (_) => const ChildMovementHistory()),
-          ),
-    ),
-    _QuickActionItem(
-      icon: Icons.health_and_safety_outlined,
-      label: "Check on Child",
-      onTap: (ctx) => _checkOnChild(),
-    ),
-    _QuickActionItem(
-      icon: Icons.call_outlined,
-      label: "Contact Child",
-      onTap:
-          (ctx) => Navigator.of(ctx).push(
-            MaterialPageRoute(
-              builder: (_) => const GuardianEmergencyContactList(),
-            ),
-          ),
-    ),
-  ];
+  // ------------------------------------------------------------------ UI
+
+  void _openTrack([String? email]) {
+    if (email == null && widget.onOpenTab != null) {
+      widget.onOpenTab!(1);
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => TrackChild(guardianEmail: widget.guardianEmail, initialChildEmail: email),
+    ));
+  }
+
+  Future<void> _openAlerts() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => GuardianAlertsPage(guardianEmail: widget.guardianEmail)),
+    );
+    await _markAllGuardianNotificationsRead();
+  }
+
+  void _addChild() => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => AddEmergencyContacts(isGuardian: true)),
+      ).then((_) => _loadConnectedChildrenAndSubscribe());
+
+  String get _greeting {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  String get _firstName {
+    final n = sharedPreferenceData.name.trim();
+    return n.isEmpty ? 'Guardian' : n.split(' ').first;
+  }
+
+  /// "On a journey to X", "Seen 3 min ago", "No location yet".
+  String _statusOf(String email) {
+    final to = _childJourneyTo[email];
+    if (to != null) return 'On a journey to $to';
+    final ms = _childSeenMs[email];
+    if (ms == null) return 'No location shared yet';
+    final ago = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(ms));
+    final when = ago.inMinutes < 1
+        ? 'just now'
+        : ago.inMinutes < 60
+            ? '${ago.inMinutes} min ago'
+            : ago.inHours < 24
+                ? '${ago.inHours} h ago'
+                : '${ago.inDays} d ago';
+    final gps = _childGpsOk[email] == false ? ' · GPS off' : '';
+    final dist = (_currentLocation != null && _childPos[email] != null)
+        ? ' · ${formatDistance(haversine(GeoPt(_currentLocation!.latitude, _currentLocation!.longitude), GeoPt(_childPos[email]!.latitude, _childPos[email]!.longitude)))} away'
+        : '';
+    return 'Seen $when$dist$gps';
+  }
+
+  bool _isStale(String email) {
+    final ms = _childSeenMs[email];
+    if (ms == null) return true;
+    return DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(ms)).inMinutes >= 10;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0E1614) : const Color(0xFFF4F7F6);
-    final cardColor = Theme.of(context).cardColor;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final subColor = isDark ? Colors.grey[400] : Colors.grey[700];
-
-    final media = MediaQuery.of(context);
-    final screenWidth = media.size.width;
-    final screenHeight = media.size.height;
-    final double mapHeight = min(320, max(160, screenHeight * 0.30));
-    final int crossAxisCount = screenWidth < 500 ? 2 : 3;
-    final double childAspectRatio = screenWidth < 400 ? 1.05 : 1.12;
-
+    final mapHeight = min(260.0, max(170.0, MediaQuery.of(context).size.height * 0.26));
     return Scaffold(
-      backgroundColor: bgColor,
-      appBar: CustomAppBar(
-        title: "TravelGuard",
-        actions: [
-          Padding(
-            padding: const EdgeInsets.all(18),
-            child: GestureDetector(
-              onTap: () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => GuardianAlertsPage(guardianEmail: widget.guardianEmail),
+      backgroundColor: TG.bgOf(context),
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _loadConnectedChildrenAndSubscribe,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _header(),
+                      const SizedBox(height: 14),
+                      _statusPill(),
+                      _urgentBanner(),
+                      const SizedBox(height: 16),
+                      _mapCard(mapHeight),
+                      const SizedBox(height: 14),
+                      _childrenCard(),
+                      const SizedBox(height: 14),
+                      _actionsRow(),
+                    ],
                   ),
-                );
-                // mark all read after returning from notifications page
-                await _markAllGuardianNotificationsRead();
-              },
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const Icon(
-                    Icons.notifications_active_outlined,
-                    color: Color(0xFF0F766E),
-                  ),
-                  if (_hasUnreadNotifications || _hasPendingRequests)
-                    Positioned(
-                      right: -2,
-                      top: -2,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: Color(0xFF0F766E),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Theme.of(context).scaffoldBackgroundColor,
-                            width: 1.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               ),
+      ),
+    );
+  }
+
+  Widget _header() {
+    final ink = TG.inkOf(context), muted = TG.mutedOf(context);
+    final initial = _firstName[0].toUpperCase();
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_greeting, style: TextStyle(fontSize: 14, color: muted)),
+              Text(_firstName, style: GoogleFonts.manrope(fontSize: 24, fontWeight: FontWeight.w800, color: ink)),
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: 'Alerts and requests',
+          onPressed: _openAlerts,
+          icon: Badge(
+            isLabelVisible: _hasUnreadNotifications || _hasPendingRequests,
+            backgroundColor: _urgent != null ? TG.sos : TG.teal,
+            smallSize: 9,
+            child: Icon(Icons.notifications_none, color: ink),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Semantics(
+          button: true,
+          label: 'Open profile',
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () => widget.onOpenTab?.call(3),
+            child: CircleAvatar(
+              radius: 24,
+              backgroundColor: TG.softOf(context),
+              child: Text(initial, style: TextStyle(fontWeight: FontWeight.w800, color: TG.accentTextOf(context))),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _statusPill() {
+    final n = _childNames.length;
+    final travelling = _childJourneyTo.values.where((v) => v != null).length;
+    final text = n == 0
+        ? 'No children linked yet · add one to start'
+        : 'Watching $n ${n == 1 ? 'child' : 'children'}'
+            '${travelling > 0 ? ' · $travelling on a journey' : ' · all safe at rest'}';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(color: TG.softOf(context), borderRadius: BorderRadius.circular(14)),
+      child: Row(
+        children: [
+          Icon(Icons.shield_outlined, color: TG.accentTextOf(context), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: TG.accentTextOf(context))),
           ),
         ],
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : SafeArea(
-                child: CustomScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
-                        child: Text(
-                          "Welcome back, ${sharedPreferenceData.name.isNotEmpty ? sharedPreferenceData.name : "User"}",
-                          style: GoogleFonts.manrope(
-                            fontSize: 25,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: cardColor,
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              if (!isDark)
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.08),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 3),
-                                ),
-                            ],
-                            border: Border.all(
-                              color:
-                                  isDark
-                                      ? Colors.grey[800]!
-                                      : Colors.transparent,
-                            ),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: SizedBox(
-                              height: mapHeight,
-                              child: GoogleMap(
-                                onMapCreated: _onMapCreated,
-                                initialCameraPosition: CameraPosition(
-                                  target:
-                                      _currentLocation ??
-                                      const LatLng(20.5937, 78.9629),
-                                  zoom: 6.5,
-                                ),
-                                markers: _childMarkers.values.toSet(),
-                                myLocationEnabled: true,
-                                zoomControlsEnabled: true,
-                                onCameraMove: _onCameraMove,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 20)),
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 18.0),
-                        child: Text(
-                          "Quick Actions",
-                          style: GoogleFonts.manrope(
-                            fontSize: 23,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 10)),
-                    SliverPadding(
-                      padding: EdgeInsets.fromLTRB(
-                        18,
-                        0,
-                        18,
-                        media.viewPadding.bottom + 16,
-                      ),
-                      sliver: SliverGrid(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          crossAxisSpacing: 15,
-                          mainAxisSpacing: 20,
-                          childAspectRatio: childAspectRatio,
-                        ),
-                        delegate: SliverChildBuilderDelegate((context, index) {
-                          final item = _actions[index];
-                          return _buildQuickAction(
-                            icon: item.icon,
-                            label: item.label,
-                            onTap: () => item.onTap(context),
-                            isDark: isDark,
-                            cardColor: cardColor,
-                            textColor: textColor,
-                          );
-                        }, childCount: _actions.length),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
     );
   }
 
-  Widget _buildQuickAction({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    required bool isDark,
-    required Color cardColor,
-    required Color textColor,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          color: cardColor,
-          boxShadow: [
-            if (!isDark)
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 6,
-                offset: const Offset(0, 3),
-              ),
-          ],
-          border: Border.all(
-            color: isDark ? Colors.grey[800]! : Colors.transparent,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              height: 45,
-              width: 45,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isDark ? Color(0xFF12302C) : Color(0xFFD7EFEA),
-              ),
-              child: Icon(icon, color: const Color(0xFF0F766E)),
+  /// Red banner for an unread SOS / lost-contact / "need help" alert.
+  Widget _urgentBanner() {
+    final d = _urgent;
+    if (d == null) return const SizedBox.shrink();
+    final m = d.data();
+    final childEmail = (m['childEmail'] ?? '').toString();
+    final title = (m['title'] ?? 'Emergency alert').toString();
+    final body = (m['body'] ?? '').toString();
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDECEE),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF2A7B1)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.sos, color: TG.sos, size: 28),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF7A0F1E))),
+                if (body.isNotEmpty)
+                  Text(body,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12.5, color: Color(0xFF7A0F1E))),
+              ],
             ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6.0),
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.manrope(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
-                ),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: TG.sos),
+            onPressed: childEmail.isEmpty ? _openAlerts : () => _openTrack(childEmail),
+            child: const Text('Track'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _card({required Widget child, EdgeInsets padding = const EdgeInsets.all(16)}) => Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: TG.surfaceOf(context),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: TG.isDark(context)
+              ? null
+              : [BoxShadow(color: TG.ink.withValues(alpha: 0.06), blurRadius: 2, offset: const Offset(0, 1))],
+        ),
+        child: child,
+      );
+
+  Widget _mapCard(double height) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: SizedBox(
+        height: height,
+        child: Stack(
+          children: [
+            GoogleMap(
+              onMapCreated: _onMapCreated,
+              initialCameraPosition: CameraPosition(
+                target: _currentLocation ?? const LatLng(20.5937, 78.9629),
+                zoom: 6.5,
+              ),
+              markers: _childMarkers.values.toSet(),
+              myLocationEnabled: true,
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              mapToolbarEnabled: false,
+              onCameraMove: _onCameraMove,
+            ),
+            Positioned(
+              right: 10,
+              bottom: 10,
+              child: Row(
+                children: [
+                  _mapButton(Icons.center_focus_strong_outlined, 'Show everyone', () {
+                    _userMovedMap = false;
+                    _fitToAllMarkers();
+                  }),
+                  const SizedBox(width: 8),
+                  _mapButton(Icons.open_in_full, 'Open live tracking', () => _openTrack()),
+                ],
               ),
             ),
           ],
@@ -654,15 +691,151 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
       ),
     );
   }
-}
 
-class _QuickActionItem {
-  final IconData icon;
-  final String label;
-  final void Function(BuildContext) onTap;
-  _QuickActionItem({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
+  Widget _mapButton(IconData icon, String tip, VoidCallback onTap) => Material(
+        color: TG.surfaceOf(context),
+        shape: const CircleBorder(),
+        elevation: 2,
+        child: IconButton(tooltip: tip, onPressed: onTap, icon: Icon(icon, color: TG.accentTextOf(context))),
+      );
+
+  Widget _childrenCard() {
+    final muted = TG.mutedOf(context);
+    final kids = _childNames.keys.toList()..sort((a, b) => _nameOf(a).compareTo(_nameOf(b)));
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text('Your children', style: GoogleFonts.manrope(fontSize: 17, fontWeight: FontWeight.w800)),
+              ),
+              TextButton.icon(onPressed: _addChild, icon: const Icon(Icons.person_add_alt, size: 18), label: const Text('Add')),
+            ],
+          ),
+          if (kids.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Link a child to see their live location, journeys and alerts here.',
+                style: TextStyle(fontSize: 13, color: muted),
+              ),
+            ),
+          for (final e in kids) _childRow(e),
+        ],
+      ),
+    );
+  }
+
+  Widget _childRow(String email) {
+    final name = _nameOf(email);
+    final travelling = _childJourneyTo[email] != null;
+    final stale = !travelling && _isStale(email);
+    final dot = travelling ? TG.teal : (stale ? TG.warn : const Color(0xFF2E9D5B));
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => _showChildOptions(email),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: TG.softOf(context),
+                  child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                      style: TextStyle(fontWeight: FontWeight.w800, color: TG.accentTextOf(context))),
+                ),
+                Positioned(
+                  right: -1,
+                  bottom: -1,
+                  child: Container(
+                    width: 13,
+                    height: 13,
+                    decoration: BoxDecoration(
+                      color: dot,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: TG.surfaceOf(context), width: 2),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                  Text(_statusOf(email),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: travelling ? TG.accentTextOf(context) : TG.mutedOf(context),
+                        fontWeight: travelling ? FontWeight.w700 : FontWeight.w500,
+                      )),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: 'Check on $name',
+              onPressed: () => _checkOnChild(email),
+              icon: Icon(Icons.health_and_safety_outlined, color: TG.accentTextOf(context)),
+            ),
+            IconButton.filledTonal(
+              tooltip: 'Call $name',
+              onPressed: () => _callChild(email),
+              icon: const Icon(Icons.call),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _actionsRow() {
+    final items = <(IconData, String, VoidCallback)>[
+      (Icons.near_me_outlined, 'Track live', () => _openTrack()),
+      (Icons.health_and_safety_outlined, 'Check on', () => _checkOnChild()),
+      (Icons.history, 'History', () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const ChildMovementHistory()),
+          )),
+      (Icons.contacts_outlined, 'Contacts', () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const GuardianEmergencyContactList()),
+          )),
+    ];
+    return _card(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      child: Row(
+        children: [
+          for (final (icon, label, onTap) in items)
+            Expanded(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: onTap,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(color: TG.softOf(context), borderRadius: BorderRadius.circular(14)),
+                        child: Icon(icon, color: TG.accentTextOf(context)),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(label, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }

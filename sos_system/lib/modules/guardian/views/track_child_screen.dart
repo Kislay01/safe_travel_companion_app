@@ -2,6 +2,10 @@ import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:sos_system/core/app_theme.dart';
+import 'package:sos_system/services/route_scoring.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart' as location_pkg;
 import 'package:geocoding/geocoding.dart';
@@ -62,6 +66,10 @@ class _TrackChildState extends State<TrackChild> {
   String _selectedChildName = '';
   Map<String, dynamic>? _childJourney; // active journey of the selected child
   Marker? _childLiveMarker;
+  String _selectedChildPhone = '';
+  int? _childSeenMs;
+  bool _childGpsOk = true;
+  LatLng? _childPos;
 
   @override
   void initState() {
@@ -236,8 +244,9 @@ class _TrackChildState extends State<TrackChild> {
       _polylines.add(
         Polyline(
           polylineId: const PolylineId("route"),
-          color: Color(0xFF0F766E),
-          width: 6,
+          color: const Color(0xFF4F5F5C),
+          width: 5,
+          patterns: [PatternItem.dash(18), PatternItem.gap(10)],
           points: _routePoints,
         ),
       );
@@ -371,6 +380,19 @@ class _TrackChildState extends State<TrackChild> {
     _childLiveSub?.cancel();
     _selectedChildEmail = childEmail;
     if (name != null) _selectedChildName = name;
+    _selectedChildPhone = '';
+    _childSeenMs = null;
+    _childPos = null;
+    _childGpsOk = true;
+    UserPaths.guardian(widget.guardianEmail)
+        .collection('emergency_contacts')
+        .doc(UserPaths.normalize(childEmail))
+        .get()
+        .then((d) {
+      if (mounted && _selectedChildEmail == childEmail) {
+        setState(() => _selectedChildPhone = (d.data()?['mobile'] ?? '').toString().trim());
+      }
+    }).catchError((_) {});
     _watchChildJourney(childEmail);
     _childLiveSub = FirebaseFirestore.instance
         .collection('Child')
@@ -382,9 +404,17 @@ class _TrackChildState extends State<TrackChild> {
       if (!snap.exists) return;
       final data = snap.data();
       if (data == null) return;
+      final ts = data['timestamp'];
+      if (ts is num) _childSeenMs = ts.toInt();
+      _childGpsOk = data['gpsOk'] != false;
+      if (data['latitude'] is! num || data['longitude'] is! num) {
+        if (mounted) setState(() {});
+        return;
+      }
       final lat = (data['latitude'] as num).toDouble();
       final lng = (data['longitude'] as num).toDouble();
       final childPos = LatLng(lat, lng);
+      _childPos = childPos;
 
       _markers.removeWhere((m) => m.markerId.value == 'child_live');
       _childLiveMarker = Marker(
@@ -392,7 +422,7 @@ class _TrackChildState extends State<TrackChild> {
         position: childPos,
         infoWindow: InfoWindow(
             title: _selectedChildName.isNotEmpty ? _selectedChildName : _selectedChildEmail),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
       );
       _markers.add(_childLiveMarker!);
 
@@ -479,8 +509,8 @@ class _TrackChildState extends State<TrackChild> {
           if (pts.isNotEmpty) {
             _polylines.add(Polyline(
               polylineId: const PolylineId('child_route'),
-              color: Colors.orange,
-              width: 5,
+              color: TG.teal,
+              width: 6,
               points: pts,
             ));
           }
@@ -495,47 +525,153 @@ class _TrackChildState extends State<TrackChild> {
     });
   }
 
+  String get _childName => _selectedChildName.isNotEmpty ? _selectedChildName : (_selectedChildEmail ?? '');
+
+  String _seenText() {
+    final ms = _childSeenMs;
+    if (ms == null) return 'Waiting for location…';
+    final ago = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(ms));
+    final when = ago.inMinutes < 1
+        ? 'just now'
+        : ago.inMinutes < 60
+            ? '${ago.inMinutes} min ago'
+            : ago.inHours < 24
+                ? '${ago.inHours} h ago'
+                : '${ago.inDays} d ago';
+    final dist = (_currentLocation != null && _childPos != null)
+        ? ' · ${formatDistance(haversine(GeoPt(_currentLocation!.latitude, _currentLocation!.longitude), GeoPt(_childPos!.latitude, _childPos!.longitude)))} from you'
+        : '';
+    return 'Seen $when$dist${_childGpsOk ? '' : ' · GPS off'}';
+  }
+
+  /// Top card: who is selected; tap to switch child.
   Widget _buildChildBanner() {
     final email = _selectedChildEmail;
-    if (email == null) {
-      return Card(
-        child: ListTile(
-          leading: const Icon(Icons.person_search, color: Color(0xFF0F766E)),
-          title: const Text("Select a child to track"),
-          onTap: _showConnectedChildrenList,
+    final name = _childName;
+    return Material(
+      color: TG.surfaceOf(context),
+      borderRadius: BorderRadius.circular(16),
+      elevation: 3,
+      shadowColor: TG.ink.withValues(alpha: 0.25),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: _showConnectedChildrenList,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: TG.softOf(context),
+                child: email == null
+                    ? Icon(Icons.person_search, color: TG.accentTextOf(context))
+                    : Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                        style: TextStyle(fontWeight: FontWeight.w800, color: TG.accentTextOf(context))),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(email == null ? 'Select a child to track' : name,
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                    if (email != null)
+                      Text(_seenText(), style: TextStyle(fontSize: 12.5, color: TG.mutedOf(context))),
+                  ],
+                ),
+              ),
+              Icon(Icons.unfold_more, color: TG.mutedOf(context)),
+            ],
+          ),
         ),
-      );
-    }
-    final name = _selectedChildName.isNotEmpty ? _selectedChildName : email;
+      ),
+    );
+  }
+
+  /// Bottom sheet-style panel, same look as the child's journey panel.
+  Widget _bottomPanel() {
+    final email = _selectedChildEmail;
+    final muted = TG.mutedOf(context);
     final j = _childJourney;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-        child: Row(
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
+      decoration: BoxDecoration(
+        color: TG.surfaceOf(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [BoxShadow(color: TG.ink.withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, -2))],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(j != null ? Icons.navigation : Icons.child_care,
-                color: j != null ? Colors.orange : Color(0xFF0F766E)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  Text(
-                    j != null ? 'On a journey: ${j['from'] ?? ''} → ${j['to'] ?? ''}' : 'Not on a journey',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ],
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(color: TG.lineOf(context), borderRadius: BorderRadius.circular(2)),
               ),
             ),
-            TextButton.icon(
-              onPressed: () => sendCheckinAndShowStatus(context, childEmail: email, childName: name),
-              icon: const Icon(Icons.health_and_safety_outlined),
-              label: const Text("Check on"),
+            Text(j != null ? 'ON A JOURNEY' : 'STATUS',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: muted, letterSpacing: 0.6)),
+            Text(
+              email == null
+                  ? 'No child selected'
+                  : j != null
+                      ? '${j['from'] ?? ''} → ${j['to'] ?? ''}'
+                      : 'Not travelling right now',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w800),
             ),
+            if (j != null && j['durationSeconds'] is num)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  'Planned ${formatDuration((j['durationSeconds'] as num).toInt())}'
+                  '${j['distanceMeters'] is num ? ' · ${formatDistance(j['distanceMeters'] as num)}' : ''}',
+                  style: TextStyle(fontSize: 12.5, color: TG.accentTextOf(context), fontWeight: FontWeight.w700),
+                ),
+              ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: email == null
+                      ? null
+                      : () => sendCheckinAndShowStatus(context, childEmail: email, childName: _childName),
+                  icon: const Icon(Icons.health_and_safety_outlined, size: 18),
+                  label: const Text('Check on'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _selectedChildPhone.isEmpty
+                      ? null
+                      : () => launchUrl(Uri(scheme: 'tel', path: _selectedChildPhone)),
+                  icon: const Icon(Icons.call, size: 18),
+                  label: const Text('Call'),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            if (!_journeyStarted)
+              ElevatedButton.icon(
+                onPressed: (_isLoading || email == null) ? null : _startJourney,
+                icon: const Icon(Icons.directions),
+                label: Text(_isLoading ? 'Finding route…' : 'Navigate to ${_childName.split(' ').first}'),
+              )
+            else
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(backgroundColor: TG.sos, foregroundColor: Colors.white),
+                onPressed: _exitNavigation,
+                icon: const Icon(Icons.close),
+                label: const Text('Stop navigation'),
+              ),
           ],
         ),
       ),
@@ -567,29 +703,10 @@ class _TrackChildState extends State<TrackChild> {
 
     return Scaffold(
       appBar: CustomAppBar(
-        title: "Track Child",
+        title: "Track",
         actions: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 0, 18),
-            child: GestureDetector(
-              onTap: _showConnectedChildrenList,
-              child: const Icon(Icons.person_search, color: Color(0xFF0F766E)),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 18, 18, 18),
-            child: GestureDetector(
-              onTap: _refreshMap,
-              child: const Icon(Icons.refresh, color: Color(0xFF0F766E)),
-            ),
-          ),
-          // Padding(
-          //   padding: const EdgeInsets.all(18),
-          //   child: GestureDetector(
-          //     onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MovementHistoryScreen())),
-          //     child: const Icon(Icons.list_alt_outlined, color: Color(0xFF0F766E)),
-          //   ),
-          // ),
+          IconButton(tooltip: 'Switch child', onPressed: _showConnectedChildrenList, icon: const Icon(Icons.person_search)),
+          IconButton(tooltip: 'Refresh', onPressed: _refreshMap, icon: const Icon(Icons.refresh)),
         ],
       ),
       body: Stack(
@@ -600,39 +717,10 @@ class _TrackChildState extends State<TrackChild> {
             markers: _markers,
             polylines: _polylines,
             myLocationEnabled: true,
-            zoomControlsEnabled: true,
+            zoomControlsEnabled: false,
           ),
-          Positioned(top: 12, left: 12, right: 12, child: _buildChildBanner()),
-          if (!_journeyStarted)
-            Positioned(
-              bottom: 30,
-              left: 20,
-              right: 20,
-              child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : _startJourney,
-                icon: const Icon(Icons.directions, color: Colors.white,),
-                label: Text(_isLoading ? "Loading..." : "Navigate to child", style: const TextStyle(color: Colors.white),),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  backgroundColor: Color(0xFF0F766E),
-                ),
-              ),
-            )
-          else
-            Positioned(
-              bottom: 30,
-              left: 20,
-              right: 20,
-              child: ElevatedButton.icon(
-                onPressed: _exitNavigation,
-                icon: const Icon(Icons.exit_to_app,color: Colors.white,),
-                label: const Text("Exit Navigation",style: TextStyle(color: Colors.white),),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  backgroundColor: Colors.redAccent,
-                ),
-              ),
-            ),
+          Positioned(top: 12, left: 16, right: 16, child: _buildChildBanner()),
+          Positioned(left: 0, right: 0, bottom: 0, child: _bottomPanel()),
         ],
       ),
     );
