@@ -14,6 +14,11 @@ import 'package:sos_system/modules/guardian/views/guardian_emergency_contact_lis
 import 'package:sos_system/core/user_paths.dart';
 import 'package:sos_system/modules/child/views/movement_history_screen.dart';
 import 'package:sos_system/services/route_scoring.dart';
+import 'package:sos_system/common/views/medical_card.dart';
+import 'package:sos_system/common/views/trip_stats_card.dart';
+import 'package:sos_system/common/views/user_avatar.dart';
+import 'package:sos_system/services/avatar_marker.dart';
+import 'package:sos_system/services/profile_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:sos_system/modules/guardian/views/checkin_status_dialog.dart';
 import 'package:sos_system/modules/guardian/views/guardian_alerts_page.dart';
@@ -203,24 +208,45 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
       final pos = LatLng(lat, lng);
       _childPos[childEmail] = pos;
 
-      final marker = Marker(
-        markerId: MarkerId(childEmail),
-        position: pos,
-        infoWindow: InfoWindow(title: _nameOf(childEmail)),
-        onTap: () => _showChildOptions(childEmail),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _childMarkers[childEmail] = marker;
-      });
+      _updateMarker(childEmail);
 
       // Optionally fit map to include current location and child's position
       if (!_userMovedMap) _fitToAllMarkers();
     });
 
     _liveSubs[childEmail] = sub;
+    // Redraw the pin when the child changes their photo.
+    _photoSubs[childEmail] = ProfileService.photoOf('Child', childEmail).listen((_) => _updateMarker(childEmail));
+  }
+
+  final Map<String, StreamSubscription<dynamic>> _photoSubs = {};
+
+  /// Child's pin: their photo in a ring (teal while travelling).
+  Future<void> _updateMarker(String childEmail) async {
+    final pos = _childPos[childEmail];
+    if (pos == null) return;
+    final travelling = _childJourneyTo[childEmail] != null;
+    BitmapDescriptor icon;
+    try {
+      icon = await AvatarMarker.build(
+        key: childEmail,
+        name: _nameOf(childEmail),
+        photo: ProfileService.cached(childEmail),
+        ring: travelling ? TG.teal : TG.tealDark,
+      );
+    } catch (_) {
+      icon = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan);
+    }
+    if (!mounted) return;
+    setState(() {
+      _childMarkers[childEmail] = Marker(
+        markerId: MarkerId(childEmail),
+        position: _childPos[childEmail] ?? pos,
+        infoWindow: InfoWindow(title: _nameOf(childEmail), snippet: _statusOf(childEmail)),
+        onTap: () => _showChildOptions(childEmail),
+        icon: icon,
+      );
+    });
   }
 
   void _subscribeToChildJourney(String childEmail) {
@@ -233,15 +259,53 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
         .listen((snap) {
       final to = snap.docs.isEmpty ? null : (snap.docs.first.data()['to'] ?? 'destination').toString();
       if (mounted) setState(() => _childJourneyTo[childEmail] = to);
+      _updateMarker(childEmail);
     }, onError: (_) {});
   }
 
   void _showChildOptions(String email) {
     showModalBottomSheet(
       context: context,
-      builder: (sheetCtx) => Column(
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: TG.surfaceOf(context),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (sheetCtx) => SingleChildScrollView(
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
+            child: Row(
+              children: [
+                UserAvatar(role: 'Child', email: email, name: _nameOf(email), radius: 26),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_nameOf(email), style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w800)),
+                      Text(_statusOf(email), style: TextStyle(fontSize: 12.5, color: TG.mutedOf(sheetCtx))),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+            child: TripStatsCard(childEmail: email, flat: true),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.medical_information_outlined, color: TG.sos),
+            title: const Text("Medical card"),
+            subtitle: const Text("Blood group, allergies, medicines"),
+            onTap: () {
+              Navigator.pop(sheetCtx);
+              showChildMedicalSheet(context, childEmail: email, childName: _nameOf(email));
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.health_and_safety_outlined, color: TG.teal),
             title: Text("Check on ${_nameOf(email)}"),
@@ -285,7 +349,9 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
               _callChild(email);
             },
           ),
+        const SizedBox(height: 12),
         ],
+        ),
       ),
     );
   }
@@ -333,6 +399,9 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
       s.cancel();
     }
     for (final s in _journeySubs.values) {
+      s.cancel();
+    }
+    for (final s in _photoSubs.values) {
       s.cancel();
     }
     _mapController?.dispose();
@@ -562,11 +631,7 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: () => widget.onOpenTab?.call(3),
-            child: CircleAvatar(
-              radius: 24,
-              backgroundColor: TG.softOf(context),
-              child: Text(initial, style: TextStyle(fontWeight: FontWeight.w800, color: TG.accentTextOf(context))),
-            ),
+            child: UserAvatar(role: 'Guardian', email: widget.guardianEmail, name: initial, radius: 24),
           ),
         ),
       ],
@@ -743,12 +808,7 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
             Stack(
               clipBehavior: Clip.none,
               children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: TG.softOf(context),
-                  child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-                      style: TextStyle(fontWeight: FontWeight.w800, color: TG.accentTextOf(context))),
-                ),
+                UserAvatar(role: 'Child', email: email, name: name, radius: 22),
                 Positioned(
                   right: -1,
                   bottom: -1,

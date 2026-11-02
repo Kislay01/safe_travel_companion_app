@@ -1,5 +1,6 @@
 // lib/modules/guardian/views/guardian_chat_list.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:sos_system/common/views/user_avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sos_system/common/views/chat_page.dart';
@@ -140,9 +141,7 @@ class _GuardianChatListState extends State<GuardianChatList> {
                                   width: 1,
                                 ),
                               ),
-                              child: ClipOval(
-                                child: Image.asset("assets/images/profile.jpg", fit: BoxFit.cover),
-                              ),
+                              child: UserAvatar(role: (data['role'] ?? 'Child').toString(), email: (email.toString().isNotEmpty ? email.toString() : doc.id), name: name.toString(), radius: 29),
                             ),
                             const SizedBox(width: 15),
                             Expanded(

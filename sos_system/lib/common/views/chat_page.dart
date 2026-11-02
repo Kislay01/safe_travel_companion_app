@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:sos_system/common/controllers/chat_controller.dart';
 import 'package:sos_system/common/model/message_model.dart';
 import 'package:sos_system/common/views/custom_appbar.dart';
+import 'package:sos_system/common/views/user_avatar.dart';
 
 class ChatScreen extends StatefulWidget {
   final String name;
@@ -103,10 +104,11 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
 
-    final avatar = const CircleAvatar(
-      backgroundImage: AssetImage("assets/images/profile.jpg"),
-      radius: 20,
-    );
+    final myRole = widget.isChildSide ? 'Child' : 'Guardian';
+    final otherRole = widget.isChildSide ? 'Guardian' : 'Child';
+    final avatar = isMe
+        ? UserAvatar(role: myRole, email: widget.myEmail, name: 'Me', radius: 20)
+        : UserAvatar(role: otherRole, email: widget.otherEmail, name: widget.name, radius: 20);
 
     if (isMe) {
       return Row(

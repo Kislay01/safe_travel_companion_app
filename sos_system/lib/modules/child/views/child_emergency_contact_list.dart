@@ -1,6 +1,7 @@
 // lib/modules/Child/views/emergency_contact_list.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sos_system/common/views/user_avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sos_system/common/views/add_emergency_contacts.dart';
@@ -240,19 +241,7 @@ class _ChildEmergencyContactListState extends State<ChildEmergencyContactList> {
                             width: 1,
                           ),
                         ),
-                        child: ClipOval(
-                          child: Image.asset(
-                            "assets/images/profile.jpg",
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Icon(
-                              Icons.person,
-                              size: avatarSize * 0.6,
-                              color: isDark
-                                  ? Colors.grey[300]
-                                  : Colors.grey[700],
-                            ),
-                          ),
-                        ),
+                        child: UserAvatar(role: 'Guardian', email: doc.id, name: name, radius: avatarSize / 2 - 1),
                       ),
 
                       SizedBox(width: horizontalPadding * 0.6),

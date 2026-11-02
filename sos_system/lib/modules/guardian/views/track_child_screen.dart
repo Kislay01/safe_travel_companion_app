@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sos_system/core/app_theme.dart';
 import 'package:sos_system/services/route_scoring.dart';
+import 'package:sos_system/common/views/medical_card.dart';
+import 'package:sos_system/common/views/user_avatar.dart';
+import 'package:sos_system/services/avatar_marker.dart';
+import 'package:sos_system/services/profile_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart' as location_pkg;
@@ -67,6 +71,7 @@ class _TrackChildState extends State<TrackChild> {
   Map<String, dynamic>? _childJourney; // active journey of the selected child
   Marker? _childLiveMarker;
   String _selectedChildPhone = '';
+  StreamSubscription<dynamic>? _photoSub;
   int? _childSeenMs;
   bool _childGpsOk = true;
   LatLng? _childPos;
@@ -106,6 +111,7 @@ class _TrackChildState extends State<TrackChild> {
     _locationSubscription?.cancel();
     _childLiveSub?.cancel();
     _childDocSub?.cancel();
+    _photoSub?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
@@ -381,6 +387,14 @@ class _TrackChildState extends State<TrackChild> {
     _selectedChildEmail = childEmail;
     if (name != null) _selectedChildName = name;
     _selectedChildPhone = '';
+    _childIconFor = '';
+    _childIcon = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan);
+    _photoSub?.cancel();
+    _photoSub = ProfileService.photoOf('Child', childEmail).listen((_) {
+      if (mounted && _childPos != null && _selectedChildEmail == childEmail) {
+        setState(() => _placeChildMarker(_childPos!));
+      }
+    });
     _childSeenMs = null;
     _childPos = null;
     _childGpsOk = true;
@@ -416,15 +430,7 @@ class _TrackChildState extends State<TrackChild> {
       final childPos = LatLng(lat, lng);
       _childPos = childPos;
 
-      _markers.removeWhere((m) => m.markerId.value == 'child_live');
-      _childLiveMarker = Marker(
-        markerId: const MarkerId('child_live'),
-        position: childPos,
-        infoWindow: InfoWindow(
-            title: _selectedChildName.isNotEmpty ? _selectedChildName : _selectedChildEmail),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
-      );
-      _markers.add(_childLiveMarker!);
+      _placeChildMarker(childPos);
 
       if (!_journeyStarted) {
         _destination = childPos;
@@ -434,6 +440,31 @@ class _TrackChildState extends State<TrackChild> {
 
       if (mounted) setState(() {});
     });
+  }
+
+  BitmapDescriptor _childIcon = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan);
+  String _childIconFor = '';
+
+  void _placeChildMarker(LatLng pos) {
+    _markers.removeWhere((m) => m.markerId.value == 'child_live');
+    _childLiveMarker = Marker(
+      markerId: const MarkerId('child_live'),
+      position: pos,
+      infoWindow: InfoWindow(title: _childName),
+      icon: _childIcon,
+    );
+    _markers.add(_childLiveMarker!);
+    final email = _selectedChildEmail;
+    if (email == null) return;
+    final photo = ProfileService.cached(email);
+    final want = '$email|${photo?.length ?? 0}';
+    if (want == _childIconFor) return;
+    _childIconFor = want;
+    AvatarMarker.build(key: email, name: _childName, photo: photo).then((icon) {
+      if (!mounted || _selectedChildEmail != email) return;
+      _childIcon = icon;
+      if (_childPos != null) setState(() => _placeChildMarker(_childPos!));
+    }).catchError((_) {});
   }
 
   /// Picks [initialChildEmail], or the only linked child, automatically.
@@ -560,14 +591,13 @@ class _TrackChildState extends State<TrackChild> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: TG.softOf(context),
-                child: email == null
-                    ? Icon(Icons.person_search, color: TG.accentTextOf(context))
-                    : Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-                        style: TextStyle(fontWeight: FontWeight.w800, color: TG.accentTextOf(context))),
-              ),
+              email == null
+                  ? CircleAvatar(
+                      radius: 20,
+                      backgroundColor: TG.softOf(context),
+                      child: Icon(Icons.person_search, color: TG.accentTextOf(context)),
+                    )
+                  : UserAvatar(role: 'Child', email: email, name: name, radius: 20),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -640,6 +670,7 @@ class _TrackChildState extends State<TrackChild> {
             Row(children: [
               Expanded(
                 child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
                   onPressed: email == null
                       ? null
                       : () => sendCheckinAndShowStatus(context, childEmail: email, childName: _childName),
@@ -647,9 +678,21 @@ class _TrackChildState extends State<TrackChild> {
                   label: const Text('Check on'),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
+                  onPressed: email == null
+                      ? null
+                      : () => showChildMedicalSheet(context, childEmail: email, childName: _childName),
+                  icon: const Icon(Icons.medical_information_outlined, size: 18),
+                  label: const Text('Medical'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
                   onPressed: _selectedChildPhone.isEmpty
                       ? null
                       : () => launchUrl(Uri(scheme: 'tel', path: _selectedChildPhone)),

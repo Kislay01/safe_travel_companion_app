@@ -9,6 +9,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:sos_system/common/views/add_emergency_contacts.dart';
 import 'package:sos_system/common/views/add_place_sheet.dart';
 import 'package:sos_system/common/views/sos_hold_button.dart';
+import 'package:sos_system/common/views/trip_stats_card.dart';
+import 'package:sos_system/common/views/user_avatar.dart';
 import 'package:sos_system/core/app_theme.dart';
 import 'package:sos_system/core/user_paths.dart';
 import 'package:sos_system/modules/auth/controllers/shared_preference_data.dart';
@@ -16,6 +18,7 @@ import 'package:sos_system/modules/child/views/child_emergency_contact_list.dart
 import 'package:sos_system/modules/child/views/child_notifications_page.dart';
 import 'package:sos_system/modules/child/views/movement_history_screen.dart';
 import 'package:sos_system/services/alerts_service.dart';
+import 'package:sos_system/services/journey_service.dart';
 import 'package:sos_system/services/saved_places_service.dart';
 import 'package:sos_system/services/voice_sos_service.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -34,7 +37,8 @@ class _Guardian {
   final String name;
   final String mobile;
   final bool primary;
-  const _Guardian(this.name, this.mobile, this.primary);
+  final String email;
+  const _Guardian(this.name, this.mobile, this.primary, [this.email = '']);
 }
 
 class _ChildDashboardState extends State<ChildDashboard> {
@@ -67,18 +71,31 @@ class _ChildDashboardState extends State<ChildDashboard> {
     return _placesStream!;
   }
 
+  /// Bumped when a journey ends so the stats reload.
+  int _statsKey = 0;
+
+  void _onJourney() {
+    if (JourneyService.instance.active.value == null && mounted) {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) setState(() => _statsKey++);
+      });
+    }
+  }
+
   String get _email => _prefs.email.isNotEmpty ? _prefs.email : (FirebaseAuth.instance.currentUser?.email ?? '');
 
   @override
   void initState() {
     super.initState();
     _load();
+    JourneyService.instance.active.addListener(_onJourney);
     _checkLocationStatus();
     _locationCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) => _checkLocationStatus());
   }
 
   @override
   void dispose() {
+    JourneyService.instance.active.removeListener(_onJourney);
     _locationCheckTimer?.cancel();
     _childNotifSub?.cancel();
     _childRequestSub?.cancel();
@@ -125,6 +142,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
           name.isNotEmpty ? name : (m['email'] ?? d.id).toString(),
           (m['mobile'] ?? '').toString().trim(),
           m['isPrimary'] == true,
+          d.id,
         );
       }).toList()
         ..sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0));
@@ -208,6 +226,8 @@ class _ChildDashboardState extends State<ChildDashboard> {
                     const SizedBox(height: 22),
                     _journeyCard(),
                     const SizedBox(height: 14),
+                    TripStatsCard(key: ValueKey(_statsKey), childEmail: _email),
+                    const SizedBox(height: 14),
                     _guardiansCard(),
                     const SizedBox(height: 10),
                     Align(
@@ -261,11 +281,7 @@ class _ChildDashboardState extends State<ChildDashboard> {
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: () => widget.onOpenTab?.call(3),
-            child: CircleAvatar(
-              radius: 24,
-              backgroundColor: TG.softOf(context),
-              child: Text(initial, style: TextStyle(fontWeight: FontWeight.w800, color: TG.accentTextOf(context))),
-            ),
+            child: UserAvatar(role: 'Child', email: _email, name: initial, radius: 24),
           ),
         ),
       ],
@@ -529,8 +545,6 @@ class _ChildDashboardState extends State<ChildDashboard> {
             ? '${names[0]} and ${names[1]}'
             : '${names[0]}, ${names[1]} +${names.length - 2}';
     final primary = _guardians.where((g) => g.primary).map((g) => g.name.split(' ').first).firstOrNull;
-    const avatarColors = [Color(0xFFFDE2C8), Color(0xFFDCE4FB), Color(0xFFE6DAF7)];
-    const avatarText = [Color(0xFF9A4A0B), Color(0xFF2B47A8), Color(0xFF5B3A9E)];
     return InkWell(
       borderRadius: BorderRadius.circular(20),
       onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChildEmergencyContactList())),
@@ -545,17 +559,12 @@ class _ChildDashboardState extends State<ChildDashboard> {
                   for (var i = 0; i < _guardians.length.clamp(0, 3); i++)
                     Positioned(
                       left: i * 24.0,
-                      child: CircleAvatar(
-                        radius: 17,
-                        backgroundColor: TG.surfaceOf(context),
-                        child: CircleAvatar(
-                          radius: 15,
-                          backgroundColor: avatarColors[i],
-                          child: Text(
-                            _guardians[i].name.isNotEmpty ? _guardians[i].name[0].toUpperCase() : '?',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: avatarText[i]),
-                          ),
-                        ),
+                      child: UserAvatar(
+                        role: 'Guardian',
+                        email: _guardians[i].email,
+                        name: _guardians[i].name,
+                        radius: 15,
+                        ring: TG.surfaceOf(context),
                       ),
                     ),
                 ],

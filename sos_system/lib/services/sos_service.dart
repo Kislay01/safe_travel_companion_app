@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sos_system/core/user_paths.dart';
 import 'package:sos_system/modules/auth/controllers/shared_preference_data.dart';
+import 'package:sos_system/services/profile_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// One SOS pipeline for the button, voice trigger and "Need help" check-in reply:
@@ -27,10 +28,17 @@ class SosService {
       if (email.isEmpty) return 'Please log in again.';
       final name = prefs.name.isNotEmpty ? prefs.name : email;
 
+      // Fetched alongside the GPS fix so it adds no delay.
+      final medicalF = ProfileService.loadMedical(email)
+          .timeout(const Duration(seconds: 6))
+          .catchError((_) => const MedicalInfo());
       final pos = await _position();
       final mapLink = pos == null
           ? 'Location unavailable'
           : 'https://maps.google.com/?q=${pos.latitude},${pos.longitude}';
+
+      // Medical card travels with the alert so guardians see it immediately.
+      final medical = await medicalF;
 
       try {
         await UserPaths.child(email).collection('sos_alerts').add({
@@ -43,8 +51,13 @@ class SosService {
           childEmail: email,
           type: 'sos',
           title: '🆘 SOS from $name',
-          body: '$name needs help. $mapLink',
-          extra: {'latitude': pos?.latitude, 'longitude': pos?.longitude, 'source': source},
+          body: medical.isEmpty ? '$name needs help. $mapLink' : '$name needs help. $mapLink\nMedical: ${medical.summary}',
+          extra: {
+            'latitude': pos?.latitude,
+            'longitude': pos?.longitude,
+            'source': source,
+            if (!medical.isEmpty) 'medical': medical.toMap(),
+          },
         );
       } catch (e) {
         debugPrint('SOS alert write failed: $e');

@@ -9,6 +9,11 @@ import 'package:sos_system/common/views/settings.dart';
 import 'package:sos_system/modules/auth/controllers/shared_preference_data.dart';
 import 'package:flutter/services.dart';
 import 'package:sos_system/services/invite_service.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:sos_system/common/views/medical_card.dart';
+import 'package:sos_system/common/views/user_avatar.dart';
+import 'package:sos_system/core/app_theme.dart';
+import 'package:sos_system/services/profile_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -31,7 +36,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _photoBusy = false;
   String _inviteCode = '';
+  MedicalInfo _medical = const MedicalInfo();
 
   // Firestore / Auth / Prefs
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -41,7 +48,116 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _loadFromPrefsThenProfile().then((_) => _loadInviteCode());
+    _loadFromPrefsThenProfile().then((_) {
+      _loadInviteCode();
+      _loadMedical();
+    });
+  }
+
+  Future<void> _loadMedical() async {
+    if (role != 'Child' || email.isEmpty) return;
+    try {
+      final m = await ProfileService.loadMedical(email);
+      if (mounted) setState(() => _medical = m);
+    } catch (_) {}
+  }
+
+  String get _photoRole => role.isNotEmpty ? role : _prefs.role;
+
+  Future<void> _photoOptions() async {
+    if (email.isEmpty) return;
+    final hasPhoto = ProfileService.cached(email) != null;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: TG.surfaceOf(context),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            ListTile(
+              leading: Icon(Icons.photo_library_outlined, color: TG.teal),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(ctx, 'gallery'),
+            ),
+            ListTile(
+              leading: Icon(Icons.photo_camera_outlined, color: TG.teal),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(ctx, 'camera'),
+            ),
+            if (hasPhoto)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: TG.sos),
+                title: const Text('Remove photo'),
+                onTap: () => Navigator.pop(ctx, 'remove'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    setState(() => _photoBusy = true);
+    try {
+      if (choice == 'remove') {
+        await ProfileService.removePhoto(role: _photoRole, email: email);
+      } else {
+        final saved = await ProfileService.pickAndSavePhoto(
+          role: _photoRole,
+          email: email,
+          source: choice == 'camera' ? ImageSource.camera : ImageSource.gallery,
+        );
+        if (saved && mounted) CustomSnackbar().showSnackBar(context, "Profile photo updated");
+      }
+    } catch (e) {
+      if (mounted) {
+        CustomSnackbar().showSnackBar(context, e is StateError ? e.message : "Couldn't update the photo. Try again.");
+      }
+    } finally {
+      if (mounted) setState(() => _photoBusy = false);
+    }
+  }
+
+  Future<void> _editMedical() async {
+    final saved = await showMedicalEditSheet(context, email: email, current: _medical);
+    if (saved != null && mounted) {
+      setState(() => _medical = saved);
+      CustomSnackbar().showSnackBar(context, "Medical card saved");
+    }
+  }
+
+  Widget _buildMedicalCard(Color? cardColor, Color textColor) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      color: cardColor,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 8, 6, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.medical_information_outlined, color: TG.sos),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text("Medical card",
+                      style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w700, color: textColor)),
+                ),
+                TextButton(onPressed: _editMedical, child: Text(_medical.isEmpty ? 'Add' : 'Edit')),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: MedicalDetails(
+                info: _medical,
+                emptyText: 'Add your blood group, allergies or medicines. Your guardians get it with every SOS.',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _loadInviteCode() async {
@@ -371,7 +487,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       // Write updated doc under newEmail
-      await _firestore.collection(saveCollection).doc(newEmail).set(updatedData);
+      await _firestore.collection(saveCollection).doc(newEmail).set(updatedData, SetOptions(merge: true));
 
       // If email changed and old doc existed, delete old doc
       if (newEmail != originalEmail) {
@@ -471,13 +587,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Stack(
                     alignment: Alignment.bottomRight,
                     children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundImage: const AssetImage("assets/images/profile.jpg"),
-                        backgroundColor: Colors.transparent,
+                      GestureDetector(
+                        onTap: _photoBusy ? null : _photoOptions,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            UserAvatar(role: _photoRole, email: email, name: name, radius: 50),
+                            if (_photoBusy) const CircularProgressIndicator(),
+                          ],
+                        ),
                       ),
                       GestureDetector(
-                        onTap: _openEditSheet,
+                        onTap: _photoBusy ? null : _photoOptions,
                         child: Container(
                           height: 30,
                           width: 30,
@@ -486,7 +607,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
-                            Icons.edit_outlined,
+                            Icons.photo_camera_outlined,
                             color: Color(0xFF0F766E),
                             size: 18,
                           ),
@@ -508,16 +629,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: GoogleFonts.manrope(fontSize: 14, color: subTextColor),
                   ),
                   const SizedBox(height: 24),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "Personal Information",
-                      style: GoogleFonts.manrope(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: textColor,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          "Personal Information",
+                          style: GoogleFonts.manrope(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: textColor,
+                          ),
+                        ),
                       ),
-                    ),
+                      TextButton.icon(
+                        onPressed: _openEditSheet,
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        label: const Text('Edit'),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 10),
                   Card(
@@ -535,6 +664,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  if (role == 'Child') ...[
+                    _buildMedicalCard(cardColor, textColor),
+                    const SizedBox(height: 16),
+                  ],
                   if (role.isNotEmpty) _buildInviteCard(cardColor, textColor, subTextColor ?? Colors.grey),
                   const SizedBox(height: 30),
                 ],
