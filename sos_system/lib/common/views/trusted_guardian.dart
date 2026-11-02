@@ -19,7 +19,7 @@ class TrustedGuardian extends StatelessWidget {
           children: [
             Text(
               'What is Trusted Guardian?',
-              style: GoogleFonts.poppins(
+              style: GoogleFonts.manrope(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
               ),
@@ -27,12 +27,12 @@ class TrustedGuardian extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               "A Trusted Guardian is someone you rely on for safety and support. In TravelGuard, they are the people who will be notified instantly if you are in an emergency or need help.",
-              style: GoogleFonts.poppins(fontSize: 16, height: 1.4),
+              style: GoogleFonts.manrope(fontSize: 16, height: 1.4),
             ),
             const SizedBox(height: 20),
             Text(
               'Purpose',
-              style: GoogleFonts.poppins(
+              style: GoogleFonts.manrope(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
               ),
@@ -40,13 +40,13 @@ class TrustedGuardian extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               "The Trusted Guardian feature ensures you're never alone during unexpected situations. Whether you're travelling, walking alone, or facing danger — your guardians will always know your location and can reach you quickly.",
-              style: GoogleFonts.poppins(fontSize: 16, height: 1.4),
+              style: GoogleFonts.manrope(fontSize: 16, height: 1.4),
             ),
             const SizedBox(height: 20),
 
             Text(
               'How It Works',
-              style: GoogleFonts.poppins(
+              style: GoogleFonts.manrope(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
               ),
@@ -57,11 +57,11 @@ class TrustedGuardian extends StatelessWidget {
 2. Instant Alerts: In an emergency, simply press the SOS button to send an instant alert to your guardians.
 3. Real-Time Location: Your guardians receive your live location, allowing them to assist you or notify authorities if needed.
 4. Safety Check-Ins: You can also send regular check-ins to your guardians to let them know you're safe.
-              ''', style: GoogleFonts.poppins(fontSize: 16, height: 1.4)),
+              ''', style: GoogleFonts.manrope(fontSize: 16, height: 1.4)),
 
             Text(
               'Privacy & Control',
-              style: GoogleFonts.poppins(
+              style: GoogleFonts.manrope(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
               ),
@@ -69,14 +69,14 @@ class TrustedGuardian extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               "TravelGuard shares your location only with your verified guardians. All your information remains secure, encrypted, and under your control. You can add guardians from Home → Add Emergency Contacts (or with an invite code), choose your primary contact in Settings, and remove a guardian anytime by swiping left on them in Emergency Contacts.",
-              style: GoogleFonts.poppins(fontSize: 16, height: 1.4),
+              style: GoogleFonts.manrope(fontSize: 16, height: 1.4),
             ),
 
             SizedBox(height: 30,),
 
             Text(
               'Stay Safe. Stay Connected. Always with TravelGuard.',
-              style: GoogleFonts.poppins(
+              style: GoogleFonts.manrope(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
               ),
@@ -106,7 +106,7 @@ class TrustedGuardian extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           name,
-          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500),
+          style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w500),
         ),
       ],
     );
@@ -120,11 +120,11 @@ class TrustedGuardian extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 5),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        color: isDarkMode ? const Color(0xFF172220) : Colors.white,
       ),
       child: ListTile(
-        leading: Icon(icon, color: const Color.fromRGBO(0, 123, 255, 1.0)),
-        title: Text(title, style: GoogleFonts.poppins(fontSize: 15)),
+        leading: Icon(icon, color: const Color(0xFF0F766E)),
+        title: Text(title, style: GoogleFonts.manrope(fontSize: 15)),
         // trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.grey[600], size: 18),
       ),
     );

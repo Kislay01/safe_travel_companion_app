@@ -19,7 +19,7 @@ class LocationSharingInfoPage extends StatelessWidget {
           children: [
             Text(
               'Introduction',
-              style: GoogleFonts.poppins(
+              style: GoogleFonts.manrope(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
               ),
@@ -27,12 +27,12 @@ class LocationSharingInfoPage extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               "Location sharing is a key feature of TravelGuard, designed to help your trusted guardians know where you are when it matters most. It ensures that in emergencies, your loved ones can quickly find and reach you without delay.",
-              style: GoogleFonts.poppins(fontSize: 16, height: 1.4),
+              style: GoogleFonts.manrope(fontSize: 16, height: 1.4),
             ),
             const SizedBox(height: 20),
             Text(
               'What Location Sharing Does',
-              style: GoogleFonts.poppins(
+              style: GoogleFonts.manrope(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
               ),
@@ -40,13 +40,13 @@ class LocationSharingInfoPage extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               "When you enable location sharing, TravelGuard continuously updates your real-time location to your selected trusted guardians. In case of an emergency, they receive your exact location instantly, allowing them to assist you or notify authorities if needed.",
-              style: GoogleFonts.poppins(fontSize: 16, height: 1.4),
+              style: GoogleFonts.manrope(fontSize: 16, height: 1.4),
             ),
             const SizedBox(height: 20),
 
             Text(
               'When to Use Location Sharing',
-              style: GoogleFonts.poppins(
+              style: GoogleFonts.manrope(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
               ),
@@ -58,13 +58,13 @@ class LocationSharingInfoPage extends StatelessWidget {
 3. Unsafe Situations: Share your location if you feel unsafe or threatened.
 4. Check-Ins: Let your guardians know you're safe by sharing your location periodically.
 
-              ''', style: GoogleFonts.poppins(fontSize: 16, height: 1.4)),
+              ''', style: GoogleFonts.manrope(fontSize: 16, height: 1.4)),
 
             SizedBox(height: 25,),
 
             Text(
               'Your location saves time - and time saves lives.',
-              style: GoogleFonts.poppins(
+              style: GoogleFonts.manrope(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
               ),
@@ -76,7 +76,7 @@ class LocationSharingInfoPage extends StatelessWidget {
               children: [
                 Text(
                   '-Team TravelGuard',
-                  style: GoogleFonts.poppins(
+                  style: GoogleFonts.manrope(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
@@ -108,7 +108,7 @@ class LocationSharingInfoPage extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           name,
-          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500),
+          style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w500),
         ),
       ],
     );
@@ -122,11 +122,11 @@ class LocationSharingInfoPage extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 5),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        color: isDarkMode ? const Color(0xFF172220) : Colors.white,
       ),
       child: ListTile(
-        leading: Icon(icon, color: const Color.fromRGBO(0, 123, 255, 1.0)),
-        title: Text(title, style: GoogleFonts.poppins(fontSize: 15)),
+        leading: Icon(icon, color: const Color(0xFF0F766E)),
+        title: Text(title, style: GoogleFonts.manrope(fontSize: 15)),
         // trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.grey[600], size: 18),
       ),
     );

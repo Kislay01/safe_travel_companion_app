@@ -42,7 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final subtitleColor = isDark ? Colors.grey[400] : Colors.black54;
     final borderColor =
         _loginFailed ? Colors.red : (isDark ? Colors.grey[700]! : Colors.grey);
-    final accent = const Color.fromRGBO(0, 123, 255, 1.0);
+    final accent = const Color(0xFF0F766E);
 
     return Scaffold(
       backgroundColor: scaffoldBg,
@@ -68,14 +68,14 @@ class _LoginScreenState extends State<LoginScreen> {
               // Welcome Text
               Text('Welcome back',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
+                  style: GoogleFonts.manrope(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: titleColor)),
               const SizedBox(height: 6),
               Text('Sign in to continue to your account',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(fontSize: 14, color: subtitleColor)),
+                  style: GoogleFonts.manrope(fontSize: 14, color: subtitleColor)),
               const SizedBox(height: 16),
 
               // Role selector
@@ -215,7 +215,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text("Don't have an account?",
-                      style: GoogleFonts.poppins(color: subtitleColor)),
+                      style: GoogleFonts.manrope(color: subtitleColor)),
                   TextButton(
                     onPressed: () {
                       Navigator.push(
@@ -330,7 +330,7 @@ class _LoginScreenState extends State<LoginScreen> {
           alignment: Alignment.center,
           child: Text(
             role,
-            style: GoogleFonts.poppins(
+            style: GoogleFonts.manrope(
                 color: isSelected ? Colors.white : unselectedText,
                 fontWeight: FontWeight.w600),
           ),

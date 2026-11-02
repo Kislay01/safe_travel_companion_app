@@ -52,7 +52,7 @@ class _ChildMovementHistoryState extends State<ChildMovementHistory> {
                     final c = children[i];
                     return Card(
                       child: ListTile(
-                        leading: const Icon(Icons.child_care, color: Colors.blue),
+                        leading: const Icon(Icons.child_care, color: Color(0xFF0F766E)),
                         title: Text(c['name']!),
                         subtitle: Text(c['email']!),
                         trailing: const Icon(Icons.chevron_right),

@@ -123,7 +123,7 @@ class _SOSPageState extends State<SOSPage> {
             Text(
               'In case of emergency\nPress and hold for 3 seconds to activate',
               textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
+              style: GoogleFonts.manrope(
                 fontSize: 18,
                 color: textColor,
               ),
@@ -170,7 +170,7 @@ class _SOSPageState extends State<SOSPage> {
                                 const SizedBox(height: 6),
                                 Text(
                                   'Activated',
-                                  style: GoogleFonts.poppins(
+                                  style: GoogleFonts.manrope(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 18,
@@ -180,7 +180,7 @@ class _SOSPageState extends State<SOSPage> {
                             )
                           : Text(
                               'SOS',
-                              style: GoogleFonts.poppins(
+                              style: GoogleFonts.manrope(
                                 color: Colors.white,
                                 fontSize: 36,
                                 fontWeight: FontWeight.bold,
@@ -195,7 +195,7 @@ class _SOSPageState extends State<SOSPage> {
             const SizedBox(height: 20),
             Text(
               'Or say "Help me" when Voice SOS is on (Settings)',
-              style: GoogleFonts.poppins(
+              style: GoogleFonts.manrope(
                 fontSize: 15,
                 fontStyle: FontStyle.italic,
                 color: subtitleColor,

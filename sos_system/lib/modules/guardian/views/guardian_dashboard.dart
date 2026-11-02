@@ -427,7 +427,7 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF121212) : const Color(0xFFF5F7FA);
+    final bgColor = isDark ? const Color(0xFF0E1614) : const Color(0xFFF4F7F6);
     final cardColor = Theme.of(context).cardColor;
     final textColor = isDark ? Colors.white : Colors.black;
     final subColor = isDark ? Colors.grey[400] : Colors.grey[700];
@@ -461,7 +461,7 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
                 children: [
                   const Icon(
                     Icons.notifications_active_outlined,
-                    color: Color.fromRGBO(0, 123, 255, 1.0),
+                    color: Color(0xFF0F766E),
                   ),
                   if (_hasUnreadNotifications || _hasPendingRequests)
                     Positioned(
@@ -471,7 +471,7 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
                         width: 10,
                         height: 10,
                         decoration: BoxDecoration(
-                          color: Colors.blueAccent,
+                          color: Color(0xFF0F766E),
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: Theme.of(context).scaffoldBackgroundColor,
@@ -498,7 +498,7 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
                         padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
                         child: Text(
                           "Welcome back, ${sharedPreferenceData.name.isNotEmpty ? sharedPreferenceData.name : "User"}",
-                          style: GoogleFonts.poppins(
+                          style: GoogleFonts.manrope(
                             fontSize: 25,
                             fontWeight: FontWeight.w600,
                             color: textColor,
@@ -556,7 +556,7 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
                         padding: const EdgeInsets.symmetric(horizontal: 18.0),
                         child: Text(
                           "Quick Actions",
-                          style: GoogleFonts.poppins(
+                          style: GoogleFonts.manrope(
                             fontSize: 23,
                             fontWeight: FontWeight.w600,
                             color: textColor,
@@ -632,9 +632,9 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
               width: 45,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isDark ? Colors.blueGrey[800] : Colors.blue[100],
+                color: isDark ? Color(0xFF12302C) : Color(0xFFD7EFEA),
               ),
-              child: Icon(icon, color: const Color.fromRGBO(0, 123, 255, 1.0)),
+              child: Icon(icon, color: const Color(0xFF0F766E)),
             ),
             const SizedBox(height: 8),
             Padding(
@@ -642,7 +642,7 @@ class _GuardianDashboardState extends State<GuardianDashboard> {
               child: Text(
                 label,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
+                style: GoogleFonts.manrope(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: textColor,

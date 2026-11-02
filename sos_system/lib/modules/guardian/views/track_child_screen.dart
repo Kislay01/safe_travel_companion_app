@@ -236,7 +236,7 @@ class _TrackChildState extends State<TrackChild> {
       _polylines.add(
         Polyline(
           polylineId: const PolylineId("route"),
-          color: Colors.blueAccent,
+          color: Color(0xFF0F766E),
           width: 6,
           points: _routePoints,
         ),
@@ -500,7 +500,7 @@ class _TrackChildState extends State<TrackChild> {
     if (email == null) {
       return Card(
         child: ListTile(
-          leading: const Icon(Icons.person_search, color: Colors.blue),
+          leading: const Icon(Icons.person_search, color: Color(0xFF0F766E)),
           title: const Text("Select a child to track"),
           onTap: _showConnectedChildrenList,
         ),
@@ -514,7 +514,7 @@ class _TrackChildState extends State<TrackChild> {
         child: Row(
           children: [
             Icon(j != null ? Icons.navigation : Icons.child_care,
-                color: j != null ? Colors.orange : Colors.blue),
+                color: j != null ? Colors.orange : Color(0xFF0F766E)),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -573,21 +573,21 @@ class _TrackChildState extends State<TrackChild> {
             padding: const EdgeInsets.fromLTRB(18, 18, 0, 18),
             child: GestureDetector(
               onTap: _showConnectedChildrenList,
-              child: const Icon(Icons.person_search, color: Colors.blue),
+              child: const Icon(Icons.person_search, color: Color(0xFF0F766E)),
             ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 18, 18, 18),
             child: GestureDetector(
               onTap: _refreshMap,
-              child: const Icon(Icons.refresh, color: Colors.blue),
+              child: const Icon(Icons.refresh, color: Color(0xFF0F766E)),
             ),
           ),
           // Padding(
           //   padding: const EdgeInsets.all(18),
           //   child: GestureDetector(
           //     onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MovementHistoryScreen())),
-          //     child: const Icon(Icons.list_alt_outlined, color: Colors.blue),
+          //     child: const Icon(Icons.list_alt_outlined, color: Color(0xFF0F766E)),
           //   ),
           // ),
         ],
@@ -614,7 +614,7 @@ class _TrackChildState extends State<TrackChild> {
                 label: Text(_isLoading ? "Loading..." : "Navigate to child", style: const TextStyle(color: Colors.white),),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  backgroundColor: Colors.blue,
+                  backgroundColor: Color(0xFF0F766E),
                 ),
               ),
             )

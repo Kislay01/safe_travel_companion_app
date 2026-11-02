@@ -106,7 +106,7 @@ class JourneyHistoryList extends StatelessWidget {
                 ? ' · ${ended.difference(started).inMinutes} min'
                 : '';
             final (Color color, String label, IconData icon) = switch (status) {
-              'active' => (Colors.blue, 'In progress', Icons.navigation),
+              'active' => (Color(0xFF0F766E), 'In progress', Icons.navigation),
               'completed' => (Colors.green, 'Reached', Icons.check_circle),
               _ => (Colors.orange, 'Ended early', Icons.stop_circle_outlined),
             };

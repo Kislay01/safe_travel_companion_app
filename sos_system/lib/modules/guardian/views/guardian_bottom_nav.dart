@@ -38,32 +38,17 @@ class _BottomNavbarState extends State<GuardianBottomNav> {
       },
       child: Scaffold(
         body: IndexedStack(index: currentSelectedIndex, children: pages),
-        bottomNavigationBar: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          currentIndex: currentSelectedIndex,
-          selectedItemColor: Colors.blue,
-          unselectedItemColor: Colors.grey,
-          onTap: (value) {
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: currentSelectedIndex,
+          onDestinationSelected: (value) {
             log("Index: $value");
             setState(() => currentSelectedIndex = value);
           },
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: "Home",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.map),
-              label: "Track Child",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.people),
-              label: "Profile",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.chat),
-              label: "Chat",
-            ),
+          destinations: const [
+            NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+            NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map), label: 'Track'),
+            NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
+            NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Chat'),
           ],
         ),
       ),

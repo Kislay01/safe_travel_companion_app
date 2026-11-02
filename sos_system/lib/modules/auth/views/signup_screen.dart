@@ -78,7 +78,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     Widget? suffix,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = const Color(0xFF007BFF);
+    final accent = const Color(0xFF0F766E);
 
     return InputDecoration(
       labelText: label,
@@ -114,7 +114,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = const Color(0xFF007BFF);
+    final accent = const Color(0xFF0F766E);
     final textColor = isDark ? Colors.white : Colors.black;
     final subtitleColor = isDark ? Colors.grey[400] : Colors.black54;
 
@@ -137,7 +137,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               const SizedBox(height: 12),
               Text(
                 "Create account",
-                style: GoogleFonts.poppins(
+                style: GoogleFonts.manrope(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: textColor,
@@ -146,7 +146,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               const SizedBox(height: 6),
               Text(
                 "Sign up to get started",
-                style: GoogleFonts.poppins(fontSize: 14, color: subtitleColor),
+                style: GoogleFonts.manrope(fontSize: 14, color: subtitleColor),
               ),
               const SizedBox(height: 20),
 
@@ -302,7 +302,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 children: [
                   Text(
                     "Already have an account?",
-                    style: GoogleFonts.poppins(color: subtitleColor),
+                    style: GoogleFonts.manrope(color: subtitleColor),
                   ),
                   TextButton(
                     onPressed: _backToLogin,
@@ -341,7 +341,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           alignment: Alignment.center,
           child: Text(
             role,
-            style: GoogleFonts.poppins(
+            style: GoogleFonts.manrope(
               color:
                   isSelected
                       ? Colors.white

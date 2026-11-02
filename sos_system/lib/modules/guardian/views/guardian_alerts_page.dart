@@ -16,7 +16,7 @@ class GuardianAlertsPage extends StatelessWidget {
       case 'sos':
         return (Icons.sos, Colors.red);
       case 'journey_started':
-        return (Icons.navigation, Colors.blue);
+        return (Icons.navigation, Color(0xFF0F766E));
       case 'journey_completed':
         return (Icons.check_circle, Colors.green);
       case 'journey_ended':
@@ -65,7 +65,7 @@ class GuardianAlertsPage extends StatelessWidget {
                 icon: Badge(
                   isLabelVisible: pending > 0,
                   label: Text('$pending'),
-                  child: const Icon(Icons.person_add_alt_1_outlined, color: Colors.blue),
+                  child: const Icon(Icons.person_add_alt_1_outlined, color: Color(0xFF0F766E)),
                 ),
               );
             },

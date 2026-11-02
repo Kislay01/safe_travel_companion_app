@@ -79,14 +79,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("Invite ${role == 'Child' ? 'a guardian' : 'your child'}",
-                style: GoogleFonts.poppins(fontSize: 13, color: subTextColor)),
+                style: GoogleFonts.manrope(fontSize: 13, color: subTextColor)),
             const SizedBox(height: 6),
             Row(
               children: [
                 Expanded(
                   child: Text(
                     _inviteCode.isEmpty ? "Generating…" : _inviteCode,
-                    style: GoogleFonts.poppins(
+                    style: GoogleFonts.manrope(
                         fontSize: 22, fontWeight: FontWeight.w700, letterSpacing: 2, color: textColor),
                   ),
                 ),
@@ -108,7 +108,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
             Text("They enter this code when signing up and you are linked automatically.",
-                style: GoogleFonts.poppins(fontSize: 12, color: subTextColor)),
+                style: GoogleFonts.manrope(fontSize: 12, color: subTextColor)),
           ],
         ),
       ),
@@ -259,7 +259,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 14),
                   Text(
                     "Edit Profile",
-                    style: GoogleFonts.poppins(
+                    style: GoogleFonts.manrope(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: textColor,
@@ -289,7 +289,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color.fromRGBO(0, 123, 255, 1.0),
+                            backgroundColor: const Color(0xFF0F766E),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -306,7 +306,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 )
                               : Text(
                                   "Save",
-                                  style: GoogleFonts.poppins(
+                                  style: GoogleFonts.manrope(
                                     fontWeight: FontWeight.w600,
                                     color: Colors.white,
                                   ),
@@ -418,10 +418,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return TextField(
       controller: controller,
       keyboardType: keyboard,
-      style: GoogleFonts.poppins(color: textColor),
+      style: GoogleFonts.manrope(color: textColor),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: GoogleFonts.poppins(color: hintColor),
+        labelStyle: GoogleFonts.manrope(color: hintColor),
         filled: true,
         fillColor: cardColor,
         border: OutlineInputBorder(
@@ -438,7 +438,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final cardColor = Theme.of(context).cardColor;
     final textColor = isDark ? Colors.white : Colors.black;
     final subTextColor = isDark ? Colors.grey[400] : Colors.grey[600];
-    final backgroundColor = isDark ? const Color(0xFF121212) : Colors.grey[50];
+    final backgroundColor = isDark ? const Color(0xFF0E1614) : Colors.grey[50];
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -455,7 +455,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
               child: const Icon(
                 Icons.settings_outlined,
-                color: Color.fromRGBO(0, 123, 255, 1.0),
+                color: Color(0xFF0F766E),
               ),
             ),
           ),
@@ -482,12 +482,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           height: 30,
                           width: 30,
                           decoration: BoxDecoration(
-                            color: isDark ? Colors.blueGrey[700] : Colors.blue[100],
+                            color: isDark ? Color(0xFF12302C) : Color(0xFFD7EFEA),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
                             Icons.edit_outlined,
-                            color: Color.fromRGBO(0, 123, 255, 1.0),
+                            color: Color(0xFF0F766E),
                             size: 18,
                           ),
                         ),
@@ -497,7 +497,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 12),
                   Text(
                     name.isNotEmpty ? name : "User",
-                    style: GoogleFonts.poppins(
+                    style: GoogleFonts.manrope(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
                       color: textColor,
@@ -505,14 +505,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   Text(
                     role.isNotEmpty ? role : "No Role",
-                    style: GoogleFonts.poppins(fontSize: 14, color: subTextColor),
+                    style: GoogleFonts.manrope(fontSize: 14, color: subTextColor),
                   ),
                   const SizedBox(height: 24),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       "Personal Information",
-                      style: GoogleFonts.poppins(
+                      style: GoogleFonts.manrope(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: textColor,
@@ -551,12 +551,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      title: Text(label, style: GoogleFonts.poppins(fontSize: 13, color: subTextColor)),
+      title: Text(label, style: GoogleFonts.manrope(fontSize: 13, color: subTextColor)),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 6.0),
         child: Text(
           value.isNotEmpty ? value : "Not set",
-          style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w500, color: textColor),
+          style: GoogleFonts.manrope(fontSize: 15, fontWeight: FontWeight.w500, color: textColor),
         ),
       ),
     );

@@ -45,7 +45,7 @@ class _ChildChatListState extends State<ChildChatList> {
     if (_loading) {
       return Scaffold(
         appBar: const CustomAppBar(title: "Chat"),
-        backgroundColor: isDark ? const Color(0xFF121212) : Colors.grey[100],
+        backgroundColor: isDark ? const Color(0xFF0E1614) : Colors.grey[100],
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -53,7 +53,7 @@ class _ChildChatListState extends State<ChildChatList> {
     if (userEmail.isEmpty) {
       return Scaffold(
         appBar: const CustomAppBar(title: "Chat"),
-        backgroundColor: isDark ? const Color(0xFF121212) : Colors.grey[100],
+        backgroundColor: isDark ? const Color(0xFF0E1614) : Colors.grey[100],
         body: Center(child: Text("Guardian not found, Please add emergency contact", style: TextStyle(color: textColor))),
       );
     }
@@ -67,7 +67,7 @@ class _ChildChatListState extends State<ChildChatList> {
 
     return Scaffold(
       appBar: const CustomAppBar(title: "Chat"),
-      backgroundColor: isDark ? const Color(0xFF121212) : Colors.grey[100],
+      backgroundColor: isDark ? const Color(0xFF0E1614) : Colors.grey[100],
       body: Padding(
         padding: const EdgeInsets.all(18),
         child: StreamBuilder<QuerySnapshot>(
@@ -110,7 +110,7 @@ class _ChildChatListState extends State<ChildChatList> {
                       );
                     },
                     borderRadius: BorderRadius.circular(12),
-                    splashColor: isDark ? Colors.blueGrey[800] : Colors.blue.withOpacity(0.08),
+                    splashColor: isDark ? Color(0xFF12302C) : const Color(0xFF0F766E).withValues(alpha: 0.08),
                     child: Container(
                       height: 90,
                       decoration: BoxDecoration(
@@ -151,7 +151,7 @@ class _ChildChatListState extends State<ChildChatList> {
                                 children: [
                                   Row(
                                     children: [
-                                      Text(name, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600, color: textColor)),
+                                      Text(name, style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w600, color: textColor)),
                                       const SizedBox(width: 8),
                                       if (isPrimary)
                                         Container(
@@ -160,12 +160,12 @@ class _ChildChatListState extends State<ChildChatList> {
                                             color: Colors.amber.shade100,
                                             borderRadius: BorderRadius.circular(12),
                                           ),
-                                          child: Text('Primary', style: GoogleFonts.poppins(fontSize: 12, color: Colors.black)),
+                                          child: Text('Primary', style: GoogleFonts.manrope(fontSize: 12, color: Colors.black)),
                                         ),
                                     ],
                                   ),
                                   const SizedBox(height: 6),
-                                  Text(relationship, style: GoogleFonts.poppins(fontSize: 14, color: subTextColor)),
+                                  Text(relationship, style: GoogleFonts.manrope(fontSize: 14, color: subTextColor)),
                                 ],
                               ),
                             ),
@@ -174,9 +174,9 @@ class _ChildChatListState extends State<ChildChatList> {
                               width: 38,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: isDark ? Colors.blueGrey[800] : Colors.blue[50],
+                                color: isDark ? Color(0xFF12302C) : Color(0xFFE6F4F1),
                               ),
-                              child: const Icon(Icons.message_outlined, color: Color.fromRGBO(0, 123, 255, 1.0), size: 20),
+                              child: const Icon(Icons.message_outlined, color: Color(0xFF0F766E), size: 20),
                             ),
                           ],
                         ),

@@ -29,7 +29,7 @@ class AboutUs extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               'TravelGuard',
-              style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.bold),
+              style: GoogleFonts.manrope(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             Text(
@@ -37,12 +37,12 @@ class AboutUs extends StatelessWidget {
               "It shares live location with trusted guardians, alerts them when a journey "
               "starts and when you arrive, and sends an instant SOS with your location in "
               "an emergency — by pressing a button or just by saying \"help me\".",
-              style: GoogleFonts.poppins(fontSize: 14),
+              style: GoogleFonts.manrope(fontSize: 14),
             ),
             const SizedBox(height: 20),
             Text(
               'What TravelGuard does',
-              style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+              style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 10),
             _feature(context, Icons.my_location, "Live location sharing with your guardians"),
@@ -56,7 +56,7 @@ class AboutUs extends StatelessWidget {
             const SizedBox(height: 20),
             Text(
               'Developed by',
-              style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+              style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 10),
             for (final name in _team) _buildNavTile(Icons.person, name, context),
@@ -71,9 +71,9 @@ class AboutUs extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Icon(icon, color: const Color.fromRGBO(0, 123, 255, 1.0), size: 22),
+          Icon(icon, color: const Color(0xFF0F766E), size: 22),
           const SizedBox(width: 12),
-          Expanded(child: Text(text, style: GoogleFonts.poppins(fontSize: 14))),
+          Expanded(child: Text(text, style: GoogleFonts.manrope(fontSize: 14))),
         ],
       ),
     );
@@ -87,11 +87,11 @@ class AboutUs extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 5),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        color: isDarkMode ? const Color(0xFF172220) : Colors.white,
       ),
       child: ListTile(
-        leading: Icon(icon, color: const Color.fromRGBO(0, 123, 255, 1.0)),
-        title: Text(title, style: GoogleFonts.poppins(fontSize: 15)),
+        leading: Icon(icon, color: const Color(0xFF0F766E)),
+        title: Text(title, style: GoogleFonts.manrope(fontSize: 15)),
       ),
     );
   }

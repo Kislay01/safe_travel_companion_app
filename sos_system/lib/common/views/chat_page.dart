@@ -80,7 +80,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildMessageBubble(MessageModel m, bool isMe) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final senderBubbleColor = const Color.fromRGBO(0, 123, 255, 1.0);
+    final senderBubbleColor = const Color(0xFF0F766E);
     final receiverBubbleColor = isDark ? Colors.grey[800] : Colors.grey[200];
     final textColor = isMe ? Colors.white : (isDark ? Colors.white : Colors.black);
 
@@ -96,9 +96,9 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Column(
         crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          Text(m.text, style: GoogleFonts.poppins(fontSize: 14, color: textColor)),
+          Text(m.text, style: GoogleFonts.manrope(fontSize: 14, color: textColor)),
           const SizedBox(height: 6),
-          Text(timeString, style: GoogleFonts.poppins(fontSize: 10, color: Colors.black54)),
+          Text(timeString, style: GoogleFonts.manrope(fontSize: 10, color: Colors.black54)),
         ],
       ),
     );
@@ -133,7 +133,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDark ? const Color(0xFF121212) : Colors.grey[100];
+    final backgroundColor = isDark ? const Color(0xFF0E1614) : Colors.grey[100];
     final inputBgColor = isDark ? Colors.grey[850] : Colors.grey[200];
     final textColor = isDark ? Colors.white : Colors.black;
     final subTextColor = isDark ? Colors.grey[400] : Colors.grey[600];
@@ -151,7 +151,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   widget.relationship,
-                  style: GoogleFonts.poppins(fontSize: 12, color: subTextColor),
+                  style: GoogleFonts.manrope(fontSize: 12, color: subTextColor),
                 ),
               ),
             ),
@@ -214,10 +214,10 @@ class _ChatScreenState extends State<ChatScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: TextField(
                       controller: _controller,
-                      style: GoogleFonts.poppins(color: textColor),
+                      style: GoogleFonts.manrope(color: textColor),
                       decoration: InputDecoration(
                         hintText: "Type a message...",
-                        hintStyle: GoogleFonts.poppins(fontSize: 14, color: subTextColor),
+                        hintStyle: GoogleFonts.manrope(fontSize: 14, color: subTextColor),
                         border: InputBorder.none,
                       ),
                     ),
@@ -235,7 +235,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   },
                   child: CircleAvatar(
                     radius: 22,
-                    backgroundColor: const Color.fromRGBO(0, 123, 255, 1.0),
+                    backgroundColor: const Color(0xFF0F766E),
                     child: const Icon(Icons.send, color: Colors.white),
                   ),
                 ),

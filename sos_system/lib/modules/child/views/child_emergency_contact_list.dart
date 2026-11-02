@@ -45,24 +45,24 @@ class _ChildEmergencyContactListState extends State<ChildEmergencyContactList> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Delete contact', style: GoogleFonts.poppins()),
+          title: Text('Delete contact', style: GoogleFonts.manrope()),
           content: Text(
             isPrimary
                 ? '“$contactName” is marked as Primary. Are you sure you want to delete this contact?'
                 : 'Are you sure you want to delete “$contactName”?',
-            style: GoogleFonts.poppins(),
+            style: GoogleFonts.manrope(),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: Text('Cancel', style: GoogleFonts.poppins()),
+              child: Text('Cancel', style: GoogleFonts.manrope()),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
               ),
               onPressed: () => Navigator.of(context).pop(true),
-              child: Text('Delete', style: GoogleFonts.poppins(color: Colors.white)),
+              child: Text('Delete', style: GoogleFonts.manrope(color: Colors.white)),
             ),
           ],
         );
@@ -111,7 +111,7 @@ class _ChildEmergencyContactListState extends State<ChildEmergencyContactList> {
     double relationshipFontSize = (screenWidth < 360) ? 13.0 : 14.0;
     double primaryTagFont = (screenWidth < 360) ? 11.0 : 12.0;
 
-    final backgroundColor = isDark ? const Color(0xFF121212) : Colors.grey[100];
+    final backgroundColor = isDark ? const Color(0xFF0E1614) : Colors.grey[100];
     final cardColor = Theme.of(context).cardColor;
     final textColor = isDark ? Colors.white : Colors.black;
     final subTextColor = isDark ? Colors.grey[400] : Colors.grey[700];
@@ -132,7 +132,7 @@ class _ChildEmergencyContactListState extends State<ChildEmergencyContactList> {
           child: Text(
             "No child user found. Please sign in or set the child profile.",
             textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(color: subTextColor),
+            style: GoogleFonts.manrope(color: subTextColor),
           ),
         ),
         floatingActionButton: Padding(
@@ -143,7 +143,7 @@ class _ChildEmergencyContactListState extends State<ChildEmergencyContactList> {
             height: (screenWidth * 0.16).clamp(48.0, 72.0),
             width: (screenWidth * 0.16).clamp(48.0, 72.0),
             child: FloatingActionButton(
-              backgroundColor: const Color.fromRGBO(0, 123, 255, 1.0),
+              backgroundColor: const Color(0xFF0F766E),
               foregroundColor: Colors.white,
               shape: const CircleBorder(),
               onPressed: () async {
@@ -275,7 +275,7 @@ class _ChildEmergencyContactListState extends State<ChildEmergencyContactList> {
                                         name,
                                         overflow: TextOverflow.ellipsis,
                                         maxLines: 1,
-                                        style: GoogleFonts.poppins(
+                                        style: GoogleFonts.manrope(
                                           fontSize: nameFontSize,
                                           fontWeight: FontWeight.w600,
                                           color: textColor,
@@ -296,7 +296,7 @@ class _ChildEmergencyContactListState extends State<ChildEmergencyContactList> {
                                         ),
                                         child: Text(
                                           'Primary',
-                                          style: GoogleFonts.poppins(
+                                          style: GoogleFonts.manrope(
                                             fontSize: primaryTagFont,
                                             color: Colors.black,
                                           ),
@@ -320,7 +320,7 @@ class _ChildEmergencyContactListState extends State<ChildEmergencyContactList> {
                                         relationship,
                                         overflow: TextOverflow.ellipsis,
                                         maxLines: 1,
-                                        style: GoogleFonts.poppins(
+                                        style: GoogleFonts.manrope(
                                           fontSize: relationshipFontSize,
                                           color: subTextColor,
                                         ),
@@ -329,7 +329,7 @@ class _ChildEmergencyContactListState extends State<ChildEmergencyContactList> {
                                     if (phone.isNotEmpty)
                                       Text(
                                         "• $phone",
-                                        style: GoogleFonts.poppins(
+                                        style: GoogleFonts.manrope(
                                           fontSize: relationshipFontSize,
                                           color: subTextColor,
                                         ),
@@ -385,7 +385,7 @@ class _ChildEmergencyContactListState extends State<ChildEmergencyContactList> {
                           width: (avatarSize * 0.65).clamp(40.0, 56.0),
                           decoration: const BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Color.fromRGBO(0, 123, 255, 1.0),
+                            color: Color(0xFF0F766E),
                           ),
                           child: const Icon(
                             Icons.call_outlined,
@@ -414,7 +414,7 @@ class _ChildEmergencyContactListState extends State<ChildEmergencyContactList> {
                   children: [
                     Icon(Icons.delete, color: Colors.white),
                     const SizedBox(width: 12),
-                    Text('Delete', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600)),
+                    Text('Delete', style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.w600)),
                   ],
                 ),
               );
@@ -442,7 +442,7 @@ class _ChildEmergencyContactListState extends State<ChildEmergencyContactList> {
           height: (screenWidth * 0.16).clamp(48.0, 72.0),
           width: (screenWidth * 0.16).clamp(48.0, 72.0),
           child: FloatingActionButton(
-            backgroundColor: const Color.fromRGBO(0, 123, 255, 1.0),
+            backgroundColor: const Color(0xFF0F766E),
             foregroundColor: Colors.white,
             shape: const CircleBorder(),
             onPressed: () async {

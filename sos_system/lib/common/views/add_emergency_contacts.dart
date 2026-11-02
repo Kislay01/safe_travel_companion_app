@@ -390,7 +390,7 @@ class _AddEmergencyContactsState extends State<AddEmergencyContacts> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDark ? const Color(0xFF121212) : Colors.grey[100];
+    final backgroundColor = isDark ? const Color(0xFF0E1614) : Colors.grey[100];
     final cardColor = Theme.of(context).cardColor;
     final textColor = isDark ? Colors.white : Colors.black;
     final hintColor = isDark ? Colors.grey[400] : Colors.grey[600];
@@ -418,7 +418,7 @@ class _AddEmergencyContactsState extends State<AddEmergencyContacts> {
               const SizedBox(height: 10),
               Text(
                 description,
-                style: GoogleFonts.poppins(
+                style: GoogleFonts.manrope(
                   fontSize: 18,
                   color: textColor.withOpacity(0.9),
                 ),
@@ -432,19 +432,19 @@ class _AddEmergencyContactsState extends State<AddEmergencyContacts> {
                 focusNode: _emailFocus,
                 textInputAction: TextInputAction.next,
                 onSubmitted: (_) => _nameFocus.requestFocus(),
-                style: GoogleFonts.poppins(fontSize: 18, color: textColor),
+                style: GoogleFonts.manrope(fontSize: 18, color: textColor),
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: cardColor,
                   hintText: emailHint,
-                  hintStyle: GoogleFonts.poppins(fontSize: 18, color: hintColor),
+                  hintStyle: GoogleFonts.manrope(fontSize: 18, color: hintColor),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8.0),
                     borderSide: BorderSide(color: borderColor),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8.0),
-                    borderSide: const BorderSide(color: Color.fromRGBO(0, 123, 255, 1.0), width: 1.5),
+                    borderSide: const BorderSide(color: Color(0xFF0F766E), width: 1.5),
                   ),
                 ),
                 inputFormatters: [LengthLimitingTextInputFormatter(emailMaxLength)],
@@ -455,7 +455,7 @@ class _AddEmergencyContactsState extends State<AddEmergencyContacts> {
                 const SizedBox(height: 6),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(_emailError, style: GoogleFonts.poppins(fontSize: 13, color: Colors.redAccent)),
+                  child: Text(_emailError, style: GoogleFonts.manrope(fontSize: 13, color: Colors.redAccent)),
                 ),
               ],
 
@@ -467,19 +467,19 @@ class _AddEmergencyContactsState extends State<AddEmergencyContacts> {
                 focusNode: _nameFocus,
                 textInputAction: TextInputAction.next,
                 onSubmitted: (_) => _phoneFocus.requestFocus(),
-                style: GoogleFonts.poppins(fontSize: 18, color: textColor),
+                style: GoogleFonts.manrope(fontSize: 18, color: textColor),
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: cardColor,
                   hintText: nameHint,
-                  hintStyle: GoogleFonts.poppins(fontSize: 18, color: hintColor),
+                  hintStyle: GoogleFonts.manrope(fontSize: 18, color: hintColor),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8.0),
                     borderSide: BorderSide(color: borderColor),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8.0),
-                    borderSide: const BorderSide(color: Color.fromRGBO(0, 123, 255, 1.0), width: 1.5),
+                    borderSide: const BorderSide(color: Color(0xFF0F766E), width: 1.5),
                   ),
                 ),
                 inputFormatters: [LengthLimitingTextInputFormatter(nameMaxLength)],
@@ -489,7 +489,7 @@ class _AddEmergencyContactsState extends State<AddEmergencyContacts> {
                 const SizedBox(height: 6),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(_nameError, style: GoogleFonts.poppins(fontSize: 13, color: Colors.redAccent)),
+                  child: Text(_nameError, style: GoogleFonts.manrope(fontSize: 13, color: Colors.redAccent)),
                 ),
               ],
 
@@ -502,19 +502,19 @@ class _AddEmergencyContactsState extends State<AddEmergencyContacts> {
                 textInputAction: TextInputAction.next,
                 onSubmitted: (_) => _relationFocus.requestFocus(),
                 keyboardType: TextInputType.phone,
-                style: GoogleFonts.poppins(fontSize: 18, color: textColor),
+                style: GoogleFonts.manrope(fontSize: 18, color: textColor),
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: cardColor,
                   hintText: phoneHint,
-                  hintStyle: GoogleFonts.poppins(fontSize: 18, color: hintColor),
+                  hintStyle: GoogleFonts.manrope(fontSize: 18, color: hintColor),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8.0),
                     borderSide: BorderSide(color: borderColor),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8.0),
-                    borderSide: const BorderSide(color: Color.fromRGBO(0, 123, 255, 1.0), width: 1.5),
+                    borderSide: const BorderSide(color: Color(0xFF0F766E), width: 1.5),
                   ),
                 ),
                 inputFormatters: [
@@ -527,7 +527,7 @@ class _AddEmergencyContactsState extends State<AddEmergencyContacts> {
                 const SizedBox(height: 6),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(_phoneError, style: GoogleFonts.poppins(fontSize: 13, color: Colors.redAccent)),
+                  child: Text(_phoneError, style: GoogleFonts.manrope(fontSize: 13, color: Colors.redAccent)),
                 ),
               ],
 
@@ -539,19 +539,19 @@ class _AddEmergencyContactsState extends State<AddEmergencyContacts> {
                 focusNode: _relationFocus,
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _onAddPressed(),
-                style: GoogleFonts.poppins(fontSize: 18, color: textColor),
+                style: GoogleFonts.manrope(fontSize: 18, color: textColor),
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: cardColor,
                   hintText: "Relationship (optional)",
-                  hintStyle: GoogleFonts.poppins(fontSize: 18, color: hintColor),
+                  hintStyle: GoogleFonts.manrope(fontSize: 18, color: hintColor),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8.0),
                     borderSide: BorderSide(color: borderColor),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8.0),
-                    borderSide: const BorderSide(color: Color.fromRGBO(0, 123, 255, 1.0), width: 1.5),
+                    borderSide: const BorderSide(color: Color(0xFF0F766E), width: 1.5),
                   ),
                 ),
                 inputFormatters: [LengthLimitingTextInputFormatter(relationMaxLength)],
@@ -561,7 +561,7 @@ class _AddEmergencyContactsState extends State<AddEmergencyContacts> {
                 const SizedBox(height: 6),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(_relationError, style: GoogleFonts.poppins(fontSize: 13, color: Colors.redAccent)),
+                  child: Text(_relationError, style: GoogleFonts.manrope(fontSize: 13, color: Colors.redAccent)),
                 ),
               ],
 
@@ -571,12 +571,12 @@ class _AddEmergencyContactsState extends State<AddEmergencyContacts> {
                 onPressed: _onAddPressed,
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 60),
-                  backgroundColor: const Color.fromRGBO(0, 123, 255, 1.0),
+                  backgroundColor: const Color(0xFF0F766E),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 child: Text(
                   widget.isGuardian ? "Send Request to Child" : "Send Request",
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 20, color: Colors.white),
+                  style: GoogleFonts.manrope(fontWeight: FontWeight.w700, fontSize: 20, color: Colors.white),
                 ),
               ),
             ],

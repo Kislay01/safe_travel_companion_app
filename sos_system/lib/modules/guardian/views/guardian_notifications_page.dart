@@ -364,13 +364,13 @@ class _GuardianNotificationsPageState extends State<GuardianNotificationsPage> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Expanded(
-              child: Text(childNameToShow, style: GoogleFonts.poppins(fontSize: nameFontSize, fontWeight: FontWeight.w700, color: textColor)),
+              child: Text(childNameToShow, style: GoogleFonts.manrope(fontSize: nameFontSize, fontWeight: FontWeight.w700, color: textColor)),
             ),
             if (showPrimaryTopChip)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(16)),
-                child: Text('Primary request', style: GoogleFonts.poppins(fontSize: titleFontSize - 1, color: Colors.black, fontWeight: FontWeight.w600)),
+                child: Text('Primary request', style: GoogleFonts.manrope(fontSize: titleFontSize - 1, color: Colors.black, fontWeight: FontWeight.w600)),
               )
             else
               Text(
@@ -383,10 +383,10 @@ class _GuardianNotificationsPageState extends State<GuardianNotificationsPage> {
               ),
           ]),
           const SizedBox(height: 8),
-          if (childEmail.isNotEmpty) Text("Email: $childEmail", style: GoogleFonts.poppins(color: subTextColor)),
-          if (relationship.toString().isNotEmpty) ...[const SizedBox(height: 6), Text("Relationship: $relationship", style: GoogleFonts.poppins(color: subTextColor))],
+          if (childEmail.isNotEmpty) Text("Email: $childEmail", style: GoogleFonts.manrope(color: subTextColor)),
+          if (relationship.toString().isNotEmpty) ...[const SizedBox(height: 6), Text("Relationship: $relationship", style: GoogleFonts.manrope(color: subTextColor))],
           const SizedBox(height: 12),
-          if (sentAt != null) Text("Sent: ${_formatTimestamp(sentAt)}", style: GoogleFonts.poppins(fontSize: 12, color: subTextColor)),
+          if (sentAt != null) Text("Sent: ${_formatTimestamp(sentAt)}", style: GoogleFonts.manrope(fontSize: 12, color: subTextColor)),
           const SizedBox(height: 12),
           if (status == 'pending')
             Wrap(spacing: 10, runSpacing: 8, children: [
@@ -396,18 +396,18 @@ class _GuardianNotificationsPageState extends State<GuardianNotificationsPage> {
                   backgroundColor: Colors.green,
                   padding: EdgeInsets.symmetric(horizontal: (screenWidth * 0.04).clamp(12.0, 20.0), vertical: 12),
                 ),
-                child: Text("Accept", style: GoogleFonts.poppins(fontSize: titleFontSize - 1, color: Colors.white)),
+                child: Text("Accept", style: GoogleFonts.manrope(fontSize: titleFontSize - 1, color: Colors.white)),
               ),
               OutlinedButton(
                 onPressed: () => _rejectReceivedRequest(doc),
                 style: OutlinedButton.styleFrom(
                   padding: EdgeInsets.symmetric(horizontal: (screenWidth * 0.04).clamp(12.0, 20.0), vertical: 12),
                 ),
-                child: Text("Reject", style: GoogleFonts.poppins(fontSize: titleFontSize - 1)),
+                child: Text("Reject", style: GoogleFonts.manrope(fontSize: titleFontSize - 1)),
               )
             ])
           else
-            Text("Request $status", style: GoogleFonts.poppins(color: subTextColor))
+            Text("Request $status", style: GoogleFonts.manrope(color: subTextColor))
         ]),
       );
     }
@@ -473,20 +473,20 @@ class _GuardianNotificationsPageState extends State<GuardianNotificationsPage> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Expanded(
-              child: Text(displayName, style: GoogleFonts.poppins(fontSize: nameFontSize, fontWeight: FontWeight.w700, color: textColor)),
+              child: Text(displayName, style: GoogleFonts.manrope(fontSize: nameFontSize, fontWeight: FontWeight.w700, color: textColor)),
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(color: statusColor.withOpacity(0.12), borderRadius: BorderRadius.circular(16)),
-              child: Text(statusLabel, style: GoogleFonts.poppins(fontSize: titleFontSize - 1, color: statusColor, fontWeight: FontWeight.w700)),
+              child: Text(statusLabel, style: GoogleFonts.manrope(fontSize: titleFontSize - 1, color: statusColor, fontWeight: FontWeight.w700)),
             ),
           ]),
           const SizedBox(height: 8),
-          if (childEmail.isNotEmpty) Text("Email: $childEmail", style: GoogleFonts.poppins(color: subTextColor)),
-          if (relationship.isNotEmpty) ...[const SizedBox(height: 6), Text("Relationship: $relationship", style: GoogleFonts.poppins(color: subTextColor))],
+          if (childEmail.isNotEmpty) Text("Email: $childEmail", style: GoogleFonts.manrope(color: subTextColor)),
+          if (relationship.isNotEmpty) ...[const SizedBox(height: 6), Text("Relationship: $relationship", style: GoogleFonts.manrope(color: subTextColor))],
           const SizedBox(height: 10),
-          if (sentAt != null) Text("Sent: ${_formatTimestamp(sentAt)}", style: GoogleFonts.poppins(fontSize: 12, color: subTextColor)),
-          if (respondedAt != null) Text("Updated: ${_formatTimestamp(respondedAt)}", style: GoogleFonts.poppins(fontSize: 12, color: subTextColor)),
+          if (sentAt != null) Text("Sent: ${_formatTimestamp(sentAt)}", style: GoogleFonts.manrope(fontSize: 12, color: subTextColor)),
+          if (respondedAt != null) Text("Updated: ${_formatTimestamp(respondedAt)}", style: GoogleFonts.manrope(fontSize: 12, color: subTextColor)),
           const SizedBox(height: 12),
           if (status == 'pending')
             Align(
@@ -496,7 +496,7 @@ class _GuardianNotificationsPageState extends State<GuardianNotificationsPage> {
                 style: OutlinedButton.styleFrom(
                   padding: EdgeInsets.symmetric(horizontal: (screenWidth * 0.04).clamp(12.0, 20.0), vertical: 12),
                 ),
-                child: Text("Cancel Request", style: GoogleFonts.poppins(fontSize: titleFontSize - 1)),
+                child: Text("Cancel Request", style: GoogleFonts.manrope(fontSize: titleFontSize - 1)),
               ),
             )
         ]),
@@ -574,9 +574,9 @@ class _GuardianNotificationsPageState extends State<GuardianNotificationsPage> {
                   padding: EdgeInsets.all((screenWidth * 0.035).clamp(12.0, 18.0)),
                   decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(12)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text("Request: $id", style: GoogleFonts.poppins(fontSize: nameFontSize, fontWeight: FontWeight.w700, color: textColor)),
+                    Text("Request: $id", style: GoogleFonts.manrope(fontSize: nameFontSize, fontWeight: FontWeight.w700, color: textColor)),
                     const SizedBox(height: 6),
-                    Text(data.toString(), style: GoogleFonts.poppins(color: subTextColor)),
+                    Text(data.toString(), style: GoogleFonts.manrope(color: subTextColor)),
                   ]),
                 );
               }

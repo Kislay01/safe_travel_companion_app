@@ -62,12 +62,12 @@ class _SplashScreenState extends State<SplashScreen>
     // 🌈 Animate between dark colors for cinematic effect
     _bgColor1 = ColorTween(
       begin: Colors.black,
-      end: const Color(0xFF001F3F), // deep navy blue
+      end: const Color(0xFF0B3B37), // deep teal
     ).animate(CurvedAnimation(parent: _bgController, curve: Curves.easeInOut));
 
     _bgColor2 = ColorTween(
       begin: Colors.black,
-      end: const Color(0xFF003366), // dark blue tone
+      end: const Color(0xFF0F766E), // brand teal
     ).animate(CurvedAnimation(parent: _bgController, curve: Curves.easeInOut));
 
     // Start both animations in sequence

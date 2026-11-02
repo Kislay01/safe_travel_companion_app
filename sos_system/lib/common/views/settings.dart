@@ -180,7 +180,7 @@ class _SettingsState extends State<Settings> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Appearance", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600)),
+                    Text("Appearance", style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 10),
 
                     _buildSwitchTile(
@@ -193,7 +193,7 @@ class _SettingsState extends State<Settings> {
 
                     if (_isChild) ...[
                       const SizedBox(height: 20),
-                      Text("Safety", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600)),
+                      Text("Safety", style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 10),
                       _buildSwitchTile(
                         icon: Icons.record_voice_over_outlined,
@@ -207,14 +207,14 @@ class _SettingsState extends State<Settings> {
                     // Primary Contact chooser (children only)
                     if (_isChild) ...[
                     const SizedBox(height: 20),
-                    Text("Primary Contact", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600)),
+                    Text("Primary Contact", style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 10),
                     Container(
                       height: 70,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                        color: isDarkMode ? const Color(0xFF172220) : Colors.white,
                       ),
                       child: _loadingContacts
                           ? Center(
@@ -228,24 +228,24 @@ class _SettingsState extends State<Settings> {
                               ),
                             )
                           : (_contacts.isEmpty)
-                              ? Center(child: Text('No emergency contacts available', style: GoogleFonts.poppins()))
+                              ? Center(child: Text('No emergency contacts available', style: GoogleFonts.manrope()))
                               : Row(
                                   children: [
-                                    Icon(Icons.contact_page_outlined, color: const Color.fromRGBO(0, 123, 255, 1.0)),
+                                    Icon(Icons.contact_page_outlined, color: const Color(0xFF0F766E)),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: DropdownButtonHideUnderline(
                                         child: DropdownButton<String>(
                                           isExpanded: true,
                                           value: _selectedContactDocId,
-                                          hint: Text('Select primary contact', style: GoogleFonts.poppins()),
+                                          hint: Text('Select primary contact', style: GoogleFonts.manrope()),
                                           items: _contacts.map((c) {
                                             final label = (c['name'] != null && (c['name'] as String).isNotEmpty)
                                                 ? c['name']
                                                 : (c['mobile'] ?? 'Unnamed');
                                             return DropdownMenuItem<String>(
                                               value: c['docId'] as String,
-                                              child: Text(label.toString(), style: GoogleFonts.poppins()),
+                                              child: Text(label.toString(), style: GoogleFonts.manrope()),
                                             );
                                           }).toList(),
                                           onChanged: (newVal) async {
@@ -266,7 +266,7 @@ class _SettingsState extends State<Settings> {
                                         ),
                                         child: Text(
                                           'Primary',
-                                          style: GoogleFonts.poppins(fontSize: 12, color: Colors.black),
+                                          style: GoogleFonts.manrope(fontSize: 12, color: Colors.black),
                                         ),
                                       ),
                                   ],
@@ -275,7 +275,7 @@ class _SettingsState extends State<Settings> {
                     ],
 
                     const SizedBox(height: 20),
-                    Text("Privacy & Security", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600)),
+                    Text("Privacy & Security", style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 10),
 
                     GestureDetector(
@@ -317,7 +317,7 @@ class _SettingsState extends State<Settings> {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
                       child: Center(
-                        child: Text(_isChild ? 'You can change the primary emergency contact above.' : 'TravelGuard', style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey)),
+                        child: Text(_isChild ? 'You can change the primary emergency contact above.' : 'TravelGuard', style: GoogleFonts.manrope(fontSize: 12, color: Colors.grey)),
                       ),
                     ),
                   ],
@@ -347,7 +347,7 @@ class _SettingsState extends State<Settings> {
                 const SizedBox(width: 8),
                 Text(
                   "Logout",
-                  style: GoogleFonts.poppins(
+                  style: GoogleFonts.manrope(
                     color: Colors.red,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -359,7 +359,7 @@ class _SettingsState extends State<Settings> {
         ),
       ),
 
-      backgroundColor: isDarkMode ? const Color(0xFF121212) : Colors.grey[100],
+      backgroundColor: isDarkMode ? const Color(0xFF0E1614) : Colors.grey[100],
     );
   }
 
@@ -376,15 +376,15 @@ class _SettingsState extends State<Settings> {
       height: 60,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(15),
-        color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        color: isDarkMode ? const Color(0xFF172220) : Colors.white,
       ),
       child: Padding(
         padding: const EdgeInsets.all(8.0),
         child: Row(
           children: [
-            Icon(icon, color: const Color.fromRGBO(0, 123, 255, 1.0)),
+            Icon(icon, color: const Color(0xFF0F766E)),
             const SizedBox(width: 10),
-            Text(title, style: GoogleFonts.poppins(fontSize: 15)),
+            Text(title, style: GoogleFonts.manrope(fontSize: 15)),
             const Spacer(),
             Switch(
               value: value,
@@ -408,11 +408,11 @@ class _SettingsState extends State<Settings> {
       margin: const EdgeInsets.only(bottom: 5),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        color: isDarkMode ? const Color(0xFF172220) : Colors.white,
       ),
       child: ListTile(
-        leading: Icon(icon, color: const Color.fromRGBO(0, 123, 255, 1.0)),
-        title: Text(title, style: GoogleFonts.poppins(fontSize: 15)),
+        leading: Icon(icon, color: const Color(0xFF0F766E)),
+        title: Text(title, style: GoogleFonts.manrope(fontSize: 15)),
         trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.grey[600], size: 18),
       ),
     );
